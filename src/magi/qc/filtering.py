@@ -1,6 +1,7 @@
-"""Read quality filtering for long-read sequencing data."""
+"""Quality filtering of long reads using fastp."""
 
 import logging
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -15,26 +16,50 @@ def filter_reads(
     max_length: Optional[int] = None,
     platform: str = "hifi",
 ) -> None:
-    """Filter sequencing reads by quality and length thresholds.
-
-    Reads the input FASTQ file and retains only those reads that meet
-    the specified minimum quality score and length criteria. Supports
-    both PacBio HiFi and Oxford Nanopore long-read platforms.
+    """Filter reads by quality and length using fastp.
 
     Args:
-        input_path: Path to the input FASTQ file.
-        output_path: Path to write the filtered FASTQ file.
-        min_quality: Minimum average quality score to retain a read.
-        min_length: Minimum read length in base pairs.
-        max_length: Maximum read length in base pairs. None means no upper limit.
-        platform: Sequencing platform, either "hifi" or "nanopore".
+        input_path: Path to input FASTQ file.
+        output_path: Path to write filtered FASTQ file.
+        min_quality: Minimum average quality score to keep a read.
+        min_length: Minimum read length to keep.
+        max_length: Maximum read length to keep. None means no upper limit.
+        platform: Sequencing platform ("hifi" or "nanopore").
 
     Raises:
-        NotImplementedError: This module is not yet implemented.
+        FileNotFoundError: If input file does not exist.
+        RuntimeError: If fastp returns a non-zero exit code.
     """
-    logger.info(
-        "Filtering reads from %s (platform=%s, min_quality=%d, "
-        "min_length=%d, max_length=%s) -> %s",
-        input_path, platform, min_quality, min_length, max_length, output_path,
-    )
-    raise NotImplementedError("Module not yet implemented")
+    input_path = Path(input_path)
+    output_path = Path(output_path)
+
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    json_report = output_path.with_suffix(".fastp.json")
+    html_report = output_path.with_suffix(".fastp.html")
+
+    cmd = [
+        "fastp",
+        "--in1", str(input_path),
+        "--out1", str(output_path),
+        "--json", str(json_report),
+        "--html", str(html_report),
+        "--qualified_quality_phred", str(min_quality),
+        "--length_required", str(min_length),
+        "--thread", "4",
+        "--disable_adapter_trimming",
+    ]
+
+    if max_length is not None:
+        cmd.extend(["--length_limit", str(max_length)])
+
+    logger.info("Running fastp: %s", " ".join(cmd))
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        raise RuntimeError(f"fastp failed (exit {result.returncode}): {result.stderr}")
+
+    logger.info("Filtered reads written to %s", output_path)

@@ -305,6 +305,43 @@ def report(input_path, output_path, formats):
     click.echo(f"Report complete. Output in {output_dir}")
 
 
+
+
+@main.command()
+@click.option("--input", "input_path", required=True, type=click.Path(exists=True),
+              help="Path to observed abundance TSV (taxa as rows, abundance column).")
+@click.option("--mock", type=click.Choice(["zymo_d6300", "zymo_d6331"]),
+              required=True, help="Mock community standard to compare against.")
+@click.option("--output", "output_path", required=True, type=click.Path(),
+              help="Path to write benchmark results TSV.")
+def benchmark(input_path, mock, output_path):
+    """Benchmark classification results against a known mock community."""
+    import pandas as pd
+
+    from magi.benchmarking.metrics import compute_benchmark_metrics
+    from magi.benchmarking.mock_communities import MOCK_COMMUNITIES
+
+    observed = pd.read_csv(input_path, sep="\t", index_col=0)
+    if "Abundance" in observed.columns:
+        obs_series = observed["Abundance"]
+    else:
+        obs_series = observed.iloc[:, 0]
+
+    community = MOCK_COMMUNITIES[mock]
+    metrics = compute_benchmark_metrics(obs_series, community["expected"], name=mock)
+
+    result = pd.DataFrame([metrics]).set_index("name")
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    result.to_csv(output_path, sep="\t")
+
+    click.echo(f"Benchmark against {community['name']}:")
+    click.echo(f"  Bray-Curtis:  {metrics['bray_curtis']:.4f}")
+    click.echo(f"  J-S divergence: {metrics['jensen_shannon']:.4f}")
+    click.echo(f"  F1 score:     {metrics['f1_score']:.4f}")
+    click.echo(f"  Precision:    {metrics['precision']:.4f}")
+    click.echo(f"  Recall:       {metrics['recall']:.4f}")
+    click.echo(f"Results written to {output_path}")
+
 @main.group()
 def db():
     """Manage reference databases for classification."""

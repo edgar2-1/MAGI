@@ -4,8 +4,10 @@ Provides subcommands for quality control, classification, unification,
 analysis, reporting, and database management.
 """
 
-import click
 import logging
+from pathlib import Path
+
+import click
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +17,7 @@ logger = logging.getLogger(__name__)
               help="Path to a YAML configuration file.")
 @click.pass_context
 def main(ctx, config):
-    """MAGI - Metagenomics Aggregation and Global Integration pipeline."""
+    """MAGI - Multi-kingdom Analysis of Genomic Interactions."""
     ctx.ensure_object(dict)
     ctx.obj["config"] = config
     logging.basicConfig(level=logging.INFO,
@@ -35,9 +37,8 @@ def run(ctx):
         click.echo("Error: --config is required for the 'run' command.", err=True)
         raise SystemExit(1)
     click.echo(f"Loading configuration from {config_path}")
-    # TODO: load YAML and invoke Snakemake
+    # TODO: invoke Snakemake with config
     click.echo("Invoking Snakemake workflow...")
-    pass
 
 
 @main.command()
@@ -59,12 +60,28 @@ def qc(input_path, output_path, platform, min_quality, min_length, host_referenc
     Filters, trims, and optionally removes host reads from the input
     FASTQ files.
     """
+    from magi.qc.filtering import filter_reads
+    from magi.qc.host_removal import remove_host
+
     click.echo(f"Running QC on {input_path} (platform={platform})")
-    click.echo(f"  min_quality={min_quality}, min_length={min_length}")
+
+    filter_reads(
+        input_path=Path(input_path),
+        output_path=Path(output_path),
+        min_quality=min_quality,
+        min_length=min_length,
+        platform=platform,
+    )
+    click.echo(f"Filtered reads written to {output_path}")
+
     if host_reference:
-        click.echo(f"  Host removal using {host_reference}")
-    # TODO: call qc module functions
-    pass
+        dehosted_path = Path(output_path).with_suffix(".dehosted.fastq")
+        remove_host(
+            input_path=Path(output_path),
+            output_path=dehosted_path,
+            host_reference=Path(host_reference),
+        )
+        click.echo(f"Host-free reads written to {dehosted_path}")
 
 
 @main.command()
@@ -72,9 +89,9 @@ def qc(input_path, output_path, platform, min_quality, min_length, host_referenc
               help="Path to input reads or contigs.")
 @click.option("--kingdom", type=click.Choice(["bacteria", "fungi", "virus"]), required=True,
               help="Target kingdom for classification.")
-@click.option("--db", "db_path", type=click.Path(), default=None,
+@click.option("--db", "db_path", type=click.Path(exists=True), required=True,
               help="Path to classification database.")
-@click.option("--confidence", type=float, default=0.7,
+@click.option("--confidence", type=float, default=0.2,
               help="Minimum confidence threshold for classification.")
 @click.option("--output", "output_path", required=True, type=click.Path(),
               help="Path to write classification results.")
@@ -85,9 +102,32 @@ def classify(input_path, kingdom, db_path, confidence, output_path):
     virome) based on the selected kingdom.
     """
     click.echo(f"Classifying {input_path} for kingdom={kingdom}")
-    click.echo(f"  confidence={confidence}, output={output_path}")
-    # TODO: call classify module functions
-    pass
+
+    if kingdom == "bacteria":
+        from magi.classify.bacteriome import classify_bacteriome
+        classify_bacteriome(
+            input_path=Path(input_path),
+            output_path=Path(output_path),
+            db_path=Path(db_path),
+            confidence=confidence,
+        )
+    elif kingdom == "fungi":
+        from magi.classify.mycobiome import classify_mycobiome
+        classify_mycobiome(
+            input_path=Path(input_path),
+            output_path=Path(output_path),
+            db_path=Path(db_path),
+            confidence=confidence,
+        )
+    elif kingdom == "virus":
+        from magi.classify.virome import classify_virome
+        classify_virome(
+            input_path=Path(input_path),
+            output_path=Path(output_path),
+            db_path=Path(db_path),
+        )
+
+    click.echo(f"Classification results written to {output_path}")
 
 
 @main.command()
@@ -105,10 +145,40 @@ def unifier(input_path, normalize_method, min_prevalence, output_path):
     Standardizes outputs from all classifiers into a single feature
     matrix, then applies the selected normalization method.
     """
-    click.echo(f"Unifying outputs from {input_path}")
-    click.echo(f"  normalize={normalize_method}, min_prevalence={min_prevalence}")
-    # TODO: call unifier module functions
-    pass
+    from magi.unifier.matrix import build_feature_matrix
+    from magi.unifier.normalize import normalize
+    from magi.unifier.standardize import standardize_outputs
+
+    input_dir = Path(input_path)
+    output_file = Path(output_path)
+
+    click.echo(f"Unifying outputs from {input_dir}")
+
+    # Standardize each kingdom
+    for kingdom, method in [("bacteria", "kraken2"), ("fungi", "kraken2"), ("virus", "genomad")]:
+        df = standardize_outputs(input_dir, kingdom=kingdom, method=method)
+        if not df.empty:
+            std_path = input_dir / f"standardized_{kingdom}.tsv"
+            df.to_csv(std_path, sep="\t", index=False)
+            click.echo(f"  Standardized {kingdom}: {len(df)} records")
+
+    # Build feature matrix
+    matrix = build_feature_matrix(input_dir)
+    click.echo(f"  Feature matrix: {matrix.shape[0]} samples x {matrix.shape[1]} features")
+
+    # Normalize
+    normalized = normalize(matrix, method=normalize_method)
+
+    # Filter by prevalence
+    prevalence = (normalized > 0).sum() / len(normalized)
+    kept = prevalence[prevalence >= min_prevalence].index
+    normalized = normalized[kept]
+    click.echo(f"  After prevalence filter ({min_prevalence}): {normalized.shape[1]} features")
+
+    # Save
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    normalized.to_csv(output_file, sep="\t")
+    click.echo(f"Unified matrix written to {output_file}")
 
 
 @main.command()
@@ -125,8 +195,8 @@ def analysis(input_path, method, output_path):
     and differential abundance testing.
     """
     click.echo(f"Running analysis on {input_path} with method={method}")
-    # TODO: call analysis module functions
-    pass
+    # TODO: implement in Phase 2
+    click.echo("Analysis module not yet implemented (Phase 2).")
 
 
 @main.command()
@@ -143,15 +213,13 @@ def report(input_path, output_path, formats):
     from the analysis results.
     """
     click.echo(f"Generating report from {input_path}")
-    click.echo(f"  output={output_path}, formats={formats}")
-    # TODO: call reporting module functions
-    pass
+    # TODO: implement in Phase 3
+    click.echo("Reporting module not yet implemented (Phase 3).")
 
 
 @main.group()
 def db():
     """Manage reference databases for classification."""
-    pass
 
 
 @db.command()
@@ -173,19 +241,15 @@ def download(download_all, kingdom):
         click.echo("Error: specify --all or --kingdom.", err=True)
         raise SystemExit(1)
     # TODO: implement database download logic
-    pass
+    click.echo("Database download not yet implemented.")
 
 
 @db.command()
 def status():
-    """Show the status of installed reference databases.
-
-    Lists each database, its version, size, and whether it is up to
-    date.
-    """
+    """Show the status of installed reference databases."""
     click.echo("Checking database status...")
     # TODO: implement database status check
-    pass
+    click.echo("Database status check not yet implemented.")
 
 
 if __name__ == "__main__":

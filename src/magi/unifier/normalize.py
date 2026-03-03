@@ -1,7 +1,8 @@
-"""Normalization methods for feature abundance matrices."""
+"""Normalization methods for compositional abundance data."""
 
 import logging
 
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -10,26 +11,35 @@ logger = logging.getLogger(__name__)
 def normalize(matrix: pd.DataFrame, method: str = "clr") -> pd.DataFrame:
     """Normalize a feature abundance matrix.
 
-    Applies the specified normalization method to transform raw or
-    relative abundance values into a form suitable for compositional
-    data analysis.
-
-    Supported methods:
-        - "clr": Centered log-ratio transformation.
-        - "relative": Relative abundance (proportions summing to 1).
-        - "tss": Total sum scaling (equivalent to relative abundance).
-
     Args:
-        matrix: A pandas DataFrame with samples as rows and features
-            as columns.
-        method: Normalization method to apply. One of "clr", "relative",
-            or "tss".
+        matrix: DataFrame with samples as rows and features as columns.
+        method: Normalization method — "clr", "relative", or "tss".
 
     Returns:
-        A normalized pandas DataFrame with the same shape as the input.
+        Normalized DataFrame with the same shape as input.
 
     Raises:
-        NotImplementedError: This module is not yet implemented.
+        ValueError: If method is not recognized.
     """
-    logger.info("Normalizing matrix with method=%s (shape=%s)", method, matrix.shape)
-    raise NotImplementedError("Module not yet implemented")
+    if method == "clr":
+        return _clr(matrix)
+    elif method in ("relative", "tss"):
+        return _relative(matrix)
+    else:
+        raise ValueError(f"Unknown normalization method: {method}")
+
+
+def _clr(matrix: pd.DataFrame) -> pd.DataFrame:
+    """Centered log-ratio transformation with pseudocount for zeros."""
+    mat = matrix.copy().astype(float)
+    mat[mat == 0] = 0.5
+    log_mat = np.log(mat)
+    geometric_means = log_mat.mean(axis=1)
+    clr_mat = log_mat.subtract(geometric_means, axis=0)
+    return clr_mat
+
+
+def _relative(matrix: pd.DataFrame) -> pd.DataFrame:
+    """Convert to relative abundance (each row sums to 1)."""
+    row_sums = matrix.sum(axis=1)
+    return matrix.div(row_sums, axis=0)

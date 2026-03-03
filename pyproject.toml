@@ -24,6 +24,7 @@ dependencies = [
     "seaborn",
     "jinja2",
     "networkx",
+    "scikit-learn",
     "statsmodels",
     "snakemake-executor-plugin-cluster-generic",
 ]

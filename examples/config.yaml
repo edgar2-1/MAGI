@@ -1,0 +1,48 @@
+project:
+  name: "magi_example"
+  output_dir: "results/"
+
+input:
+  platform: "hifi"
+  metadata: "data/metadata.tsv"
+
+qc:
+  min_quality: 20
+  min_length: 1000
+
+assembly:
+  enabled: false
+
+classify:
+  bacteriome:
+    db: "dbs/gtdb_kraken2"
+    confidence: 0.2
+  mycobiome:
+    db: "dbs/unite_kraken2"
+    confidence: 0.2
+  virome:
+    tool: "genomad"
+    db: "dbs/genomad_db"
+
+unifier:
+  normalization: "clr"
+  min_prevalence: 0.05
+
+analysis:
+  cooccurrence:
+    method: "sparcc"
+    min_abundance: 0.01
+  diversity:
+    alpha_metrics: ["shannon", "simpson", "observed_species"]
+    beta_metrics: ["bray_curtis"]
+  differential:
+    method: "kruskal"
+
+metadata_correlation:
+  tools: ["spearman"]
+  random_forest: true
+
+reporting:
+  interactive_dashboard: true
+  static_figures: true
+  formats: ["png", "svg"]

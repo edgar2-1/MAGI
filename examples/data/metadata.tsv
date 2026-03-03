@@ -1,0 +1,11 @@
+sample_id	group	age	bmi	sex
+sample_01	healthy	32	22.5	M
+sample_02	healthy	45	24.1	F
+sample_03	healthy	28	21.8	M
+sample_04	healthy	51	25.3	F
+sample_05	healthy	38	23.0	M
+sample_06	disease	41	29.7	F
+sample_07	disease	55	31.2	M
+sample_08	disease	33	28.4	F
+sample_09	disease	47	30.1	M
+sample_10	disease	36	27.9	F

@@ -1,0 +1,76 @@
+{% set name = "magi-metagenomics" %}
+{% set version = "0.1.0" %}
+
+package:
+  name: {{ name }}
+  version: {{ version }}
+
+source:
+  url: https://pypi.org/packages/source/m/{{ name }}/{{ name }}-{{ version }}.tar.gz
+  # sha256: UPDATE_WITH_ACTUAL_HASH
+
+build:
+  number: 0
+  noarch: python
+  script: {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
+  entry_points:
+    - magi = magi.cli:main
+  run_exports:
+    - {{ pin_subpackage(name, max_pin="x.x") }}
+
+requirements:
+  host:
+    - python >=3.10
+    - pip
+    - hatchling
+  run:
+    - python >=3.10
+    - click
+    - pyyaml
+    - pandas
+    - numpy
+    - scipy
+    - scikit-bio
+    - taxopy
+    - plotly-py
+    - matplotlib-base
+    - seaborn
+    - jinja2
+    - networkx
+    - scikit-learn
+    - statsmodels
+    # External bioinformatics tools (recommended)
+    - fastp
+    - minimap2
+    - samtools
+    - kraken2
+    - bracken
+    - flye
+    - snakemake-minimal
+
+test:
+  imports:
+    - magi
+    - magi.cli
+    - magi.qc.filtering
+    - magi.classify.bacteriome
+    - magi.unifier.normalize
+    - magi.analysis.diversity
+    - magi.reporting.dashboard
+  commands:
+    - magi --help
+
+about:
+  home: https://github.com/edgar2-1/MAGI
+  license: Apache-2.0
+  license_family: Apache
+  license_file: LICENSE
+  summary: Multi-kingdom Analysis of Genomic Interactions
+  description: |
+    MAGI integrates bacterial, fungal, and viral communities from long-read
+    metagenomic data into a unified multi-kingdom analysis framework.
+  dev_url: https://github.com/edgar2-1/MAGI
+
+extra:
+  recipe-maintainers:
+    - edgar2-1

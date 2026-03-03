@@ -259,6 +259,19 @@ def analysis(input_path, method, metadata, output_path):
     beta.to_csv(beta_path, sep="\t")
     click.echo(f"  Beta diversity -> {beta_path}")
 
+    # PCoA ordination
+    from magi.analysis.diversity import compute_pcoa, compute_nmds
+    pcoa = compute_pcoa(matrix)
+    pcoa_path = output_dir / "pcoa_ordination.tsv"
+    pcoa.to_csv(pcoa_path, sep="\t")
+    click.echo(f"  PCoA ordination -> {pcoa_path}")
+
+    # NMDS ordination
+    nmds = compute_nmds(matrix)
+    nmds_path = output_dir / "nmds_ordination.tsv"
+    nmds.to_csv(nmds_path, sep="\t")
+    click.echo(f"  NMDS ordination -> {nmds_path}")
+
     # Differential abundance (if metadata provided)
     if metadata:
         meta_df = pd.read_csv(metadata, sep="\t", index_col=0)
@@ -341,6 +354,49 @@ def benchmark(input_path, mock, output_path):
     click.echo(f"  Precision:    {metrics['precision']:.4f}")
     click.echo(f"  Recall:       {metrics['recall']:.4f}")
     click.echo(f"Results written to {output_path}")
+
+@main.command()
+@click.option("--config", "config_path", type=click.Path(), default=None,
+              help="Path to config file to validate.")
+@click.option("--tools-only", is_flag=True, default=False,
+              help="Only check tool availability, skip config validation.")
+@click.option("--include-optional", is_flag=True, default=False,
+              help="Include optional tools in the check.")
+def validate(config_path, tools_only, include_optional):
+    """Validate configuration and check external tool availability."""
+    from magi.validate import check_tools, validate_config
+
+    all_ok = True
+
+    # Check tools
+    click.echo("Checking external tools...")
+    tool_results = check_tools(include_optional=include_optional)
+    for t in tool_results:
+        marker = "OK" if t["status"] == "found" else ("MISSING" if t["required"] else "OPTIONAL")
+        symbol = "+" if t["status"] == "found" else "-"
+        click.echo(f"  [{symbol}] {t['tool']}: {marker}" + (f" ({t['path']})" if t["path"] else ""))
+        if t["status"] == "missing" and t["required"]:
+            all_ok = False
+
+    # Check config
+    if not tools_only and config_path:
+        click.echo(f"\nValidating config: {config_path}")
+        errors, warnings = validate_config(config_path)
+        for w in warnings:
+            click.echo(f"  [!] WARNING: {w}")
+        for e in errors:
+            click.echo(f"  [x] ERROR: {e}", err=True)
+            all_ok = False
+        if not errors:
+            click.echo("  Config validation passed.")
+    elif not tools_only and not config_path:
+        click.echo("\nNo config file specified. Use --config to validate a config file.")
+
+    if all_ok:
+        click.echo("\nValidation passed.")
+    else:
+        click.echo("\nValidation failed.", err=True)
+        raise SystemExit(1)
 
 @main.group()
 def db():

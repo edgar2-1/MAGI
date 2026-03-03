@@ -3,7 +3,14 @@ import pandas as pd
 import pytest
 
 from magi.analysis.cooccurrence import run_cooccurrence
-from magi.analysis.diversity import compute_alpha_diversity, compute_beta_diversity
+from magi.analysis.diversity import (
+    compute_alpha_diversity,
+    compute_beta_diversity,
+    compute_nmds,
+    compute_pcoa,
+    run_anosim,
+    run_permanova,
+)
 from magi.analysis.differential import run_differential
 
 # Realistic test matrix: 5 samples x 4 taxa
@@ -138,3 +145,79 @@ def test_differential_no_shared_samples():
     other_meta = pd.DataFrame({"group": ["a"]}, index=["x99"])
     with pytest.raises(ValueError, match="No shared samples"):
         run_differential(_MATRIX, other_meta)
+
+
+# --- PERMANOVA tests ---
+
+def test_permanova_returns_expected_keys():
+    result = run_permanova(_MATRIX, _METADATA, permutations=99)
+    assert "test_statistic" in result
+    assert "p_value" in result
+    assert "n_permutations" in result
+    assert "method" in result
+    assert "R2" in result
+    assert result["method"] == "PERMANOVA"
+
+
+def test_permanova_p_value_bounded():
+    result = run_permanova(_MATRIX, _METADATA, permutations=99)
+    assert 0 <= result["p_value"] <= 1
+
+
+def test_permanova_r2_bounded():
+    result = run_permanova(_MATRIX, _METADATA, permutations=99)
+    assert 0 <= result["R2"] <= 1
+
+
+def test_permanova_no_shared_samples():
+    other_meta = pd.DataFrame({"group": ["a"]}, index=["x99"])
+    with pytest.raises(ValueError, match="No shared samples"):
+        run_permanova(_MATRIX, other_meta)
+
+
+# --- ANOSIM tests ---
+
+def test_anosim_returns_expected_keys():
+    result = run_anosim(_MATRIX, _METADATA, permutations=99)
+    assert "test_statistic" in result
+    assert "p_value" in result
+    assert "method" in result
+    assert result["method"] == "ANOSIM"
+
+
+def test_anosim_p_value_bounded():
+    result = run_anosim(_MATRIX, _METADATA, permutations=99)
+    assert 0 <= result["p_value"] <= 1
+
+
+def test_anosim_invalid_group_col():
+    with pytest.raises(ValueError, match="Group column"):
+        run_anosim(_MATRIX, _METADATA, group_col="nonexistent")
+
+
+# --- PCoA tests ---
+
+def test_pcoa_returns_correct_shape():
+    result = compute_pcoa(_MATRIX, n_components=2)
+    assert result.shape == (5, 2)
+    assert "PC1" in result.columns
+    assert "PC2" in result.columns
+
+def test_pcoa_proportion_explained():
+    result = compute_pcoa(_MATRIX, n_components=2)
+    props = result.attrs.get("proportion_explained", [])
+    assert len(props) == 2
+    assert all(0 <= p <= 1 for p in props)
+
+# --- NMDS tests ---
+
+def test_nmds_returns_correct_shape():
+    result = compute_nmds(_MATRIX, n_components=2)
+    assert result.shape == (5, 2)
+    assert "NMDS1" in result.columns
+    assert "NMDS2" in result.columns
+
+def test_nmds_has_stress():
+    result = compute_nmds(_MATRIX, n_components=2)
+    assert "stress" in result.attrs
+    assert result.attrs["stress"] >= 0

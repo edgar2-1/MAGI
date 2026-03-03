@@ -64,6 +64,75 @@ def generate_dashboard(results_dir: Path, output_path: Path) -> None:
         figs.append(fig)
         logger.info("Added beta diversity heatmap")
 
+    # PCoA ordination scatter
+    pcoa_path = results_dir / "pcoa_ordination.tsv"
+    if pcoa_path.exists():
+        pcoa = pd.read_csv(pcoa_path, sep="\t", index_col=0)
+        if "PC1" in pcoa.columns and "PC2" in pcoa.columns:
+            pcoa_reset = pcoa.reset_index()
+            name_col = pcoa_reset.columns[0]
+            fig = px.scatter(
+                pcoa_reset,
+                x="PC1", y="PC2",
+                hover_name=name_col,
+                title="PCoA Ordination (Bray-Curtis)",
+                labels={"PC1": "PC1", "PC2": "PC2"},
+            )
+            fig.update_traces(marker=dict(size=10))
+            figs.append(fig)
+            logger.info("Added PCoA ordination chart")
+
+    # Log-ratio biplot
+    matrix_path = results_dir.parent / "unified_matrix.tsv"
+    if not matrix_path.exists():
+        matrix_path = results_dir / "unified_matrix.tsv"
+    if matrix_path.exists():
+        import numpy as np
+        biplot_matrix = pd.read_csv(matrix_path, sep="\t", index_col=0)
+        if biplot_matrix.shape[1] >= 2:
+            pseudo = biplot_matrix + 1
+            log_data = np.log(pseudo)
+            clr = log_data.subtract(log_data.mean(axis=1), axis=0)
+            centered = clr - clr.mean()
+            U, S, Vt = np.linalg.svd(centered.values, full_matrices=False)
+            sample_scores = U[:, :2] * S[:2]
+            taxa_loadings = Vt[:2, :].T
+            loading_mag = np.sqrt(taxa_loadings[:, 0]**2 + taxa_loadings[:, 1]**2)
+            n_top = min(10, len(loading_mag))
+            top_idx = np.argsort(loading_mag)[-n_top:]
+            total_var = np.sum(S**2)
+            var_exp = S[:2]**2 / total_var * 100
+
+            # Build Plotly figure
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=sample_scores[:, 0], y=sample_scores[:, 1],
+                mode="markers+text",
+                text=list(biplot_matrix.index),
+                textposition="top center",
+                marker=dict(size=10, color="steelblue"),
+                name="Samples",
+            ))
+            # Taxa arrows as lines
+            scale = np.max(np.abs(sample_scores)) / np.max(np.abs(taxa_loadings[top_idx])) * 0.8
+            for idx in top_idx:
+                fig.add_trace(go.Scatter(
+                    x=[0, taxa_loadings[idx, 0] * scale],
+                    y=[0, taxa_loadings[idx, 1] * scale],
+                    mode="lines+text",
+                    text=["", biplot_matrix.columns[idx]],
+                    textposition="top center",
+                    line=dict(color="red", width=2),
+                    showlegend=False,
+                ))
+            fig.update_layout(
+                title="Log-Ratio Biplot",
+                xaxis_title=f"PC1 ({var_exp[0]:.1f}% variance)",
+                yaxis_title=f"PC2 ({var_exp[1]:.1f}% variance)",
+            )
+            figs.append(fig)
+            logger.info("Added log-ratio biplot")
+
     # Differential abundance volcano plot
     diff_path = results_dir / "differential_abundance.tsv"
     if diff_path.exists():

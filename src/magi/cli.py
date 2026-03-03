@@ -29,8 +29,10 @@ def main(ctx, config):
 @main.command()
 @click.option("--cores", type=int, default=4, help="Number of cores for Snakemake.")
 @click.option("--dryrun", is_flag=True, default=False, help="Show what would be done.")
+@click.option("--profile", type=click.Path(), default=None,
+              help="Path to Snakemake cluster profile directory.")
 @click.pass_context
-def run(ctx, cores, dryrun):
+def run(ctx, cores, dryrun, profile):
     """Run the full MAGI pipeline using Snakemake."""
     config_path = ctx.obj.get("config")
     if config_path is None:
@@ -51,6 +53,8 @@ def run(ctx, cores, dryrun):
         "--cores", str(cores),
         "--use-conda",
     ]
+    if profile:
+        cmd.extend(["--profile", str(profile)])
     if dryrun:
         cmd.append("--dryrun")
 

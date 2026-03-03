@@ -1,0 +1,43 @@
+# SLURM cluster profile for MAGI
+# Usage: magi --config config.yaml run --cores 100 --profile workflow/profiles/slurm
+# Or:    snakemake --profile workflow/profiles/slurm
+
+executor: slurm
+jobs: 50
+latency-wait: 60
+default-resources:
+  slurm_partition: "standard"
+  mem_mb: 8000
+  runtime: 120    # minutes
+  cpus_per_task: 4
+
+# Resource overrides per rule (adjust for your cluster)
+set-resources:
+  qc_filter:
+    mem_mb: 4000
+    runtime: 30
+    cpus_per_task: 4
+  assembly:
+    mem_mb: 64000
+    runtime: 720
+    cpus_per_task: 16
+  classify_bacteriome:
+    mem_mb: 32000
+    runtime: 120
+    cpus_per_task: 8
+  classify_mycobiome:
+    mem_mb: 32000
+    runtime: 120
+    cpus_per_task: 8
+  classify_virome:
+    mem_mb: 16000
+    runtime: 60
+    cpus_per_task: 8
+  analysis_cooccurrence:
+    mem_mb: 16000
+    runtime: 60
+    cpus_per_task: 4
+  reporting_dashboard:
+    mem_mb: 8000
+    runtime: 30
+    cpus_per_task: 2

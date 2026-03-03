@@ -68,3 +68,23 @@ def test_run_reports_snakemake_failure(tmp_path):
         mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="snakemake error")
         result = runner.invoke(main, ["--config", str(config_file), "run"])
         assert result.exit_code == 1
+
+
+def test_run_with_profile(tmp_path):
+    """magi run with --profile passes it to snakemake."""
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("project:\n  name: test\n  output_dir: results/\n")
+    profile_dir = tmp_path / "profile"
+    profile_dir.mkdir()
+    (profile_dir / "config.yaml").write_text("executor: slurm\n")
+
+    runner = CliRunner()
+    with patch("magi.cli._subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        result = runner.invoke(main, [
+            "--config", str(config_file), "run",
+            "--profile", str(profile_dir)
+        ])
+        assert result.exit_code == 0
+        cmd = mock_run.call_args[0][0]
+        assert "--profile" in cmd

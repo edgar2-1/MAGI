@@ -1,0 +1,12 @@
+name: magi-genomad
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python
+  - genomad
+  - virsorter
+  - prodigal-gv
+  - mmseqs2
+  - pandas

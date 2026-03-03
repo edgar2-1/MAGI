@@ -1,0 +1,23 @@
+name: magi-base
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python
+  - pandas
+  - numpy
+  - scipy
+  - scikit-learn
+  - scikit-bio
+  - biom-format
+  - plotly
+  - matplotlib
+  - seaborn
+  - jinja2
+  - r-base
+  - r-ancombc
+  - r-aldex2
+  - r-maaslin2
+  - lefse
+  - snakemake-minimal

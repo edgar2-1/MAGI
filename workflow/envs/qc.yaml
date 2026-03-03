@@ -1,0 +1,14 @@
+name: magi-qc
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python
+  - chopper
+  - fastp
+  - nanoplot
+  - minimap2
+  - samtools
+  - multiqc
+  - pigz

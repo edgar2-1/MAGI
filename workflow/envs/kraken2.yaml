@@ -1,0 +1,12 @@
+name: magi-kraken2
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python
+  - kraken2
+  - bracken
+  - krakentools
+  - taxonkit
+  - pandas

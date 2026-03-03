@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "magi-metagenomics"
+version = "0.1.0"
+description = "Multi-kingdom Analysis of Genomic Interactions"
+authors = [
+    { name = "Edgardo Rosado Ramos" },
+]
+requires-python = ">=3.10"
+license = "Apache-2.0"
+dependencies = [
+    "click",
+    "pyyaml",
+    "pandas",
+    "numpy",
+    "scipy",
+    "scikit-bio",
+    "taxopy",
+    "plotly",
+    "matplotlib",
+    "seaborn",
+    "jinja2",
+    "networkx",
+    "statsmodels",
+    "snakemake-executor-plugin-cluster-generic",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "pytest-cov",
+]
+
+[project.scripts]
+magi = "magi.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/magi"]
+
+[tool.ruff]
+line-length = 99

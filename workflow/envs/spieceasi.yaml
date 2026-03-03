@@ -1,0 +1,14 @@
+name: magi-spieceasi
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - r-base
+  - r-spieceasi
+  - r-igraph
+  - r-matrix
+  - r-vegan
+  - python
+  - networkx
+  - pandas

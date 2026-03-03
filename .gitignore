@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Snakemake
+.snakemake/
+
+# Data files
+*.fastq
+*.fastq.gz
+*.fasta
+*.fna
+*.bam
+*.sam
+
+# Databases
+dbs/
+
+# Results
+results/
+
+# R
+.Rhistory
+.RData
+
+# OS
+.DS_Store

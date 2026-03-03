@@ -1,0 +1,53 @@
+project:
+  name: "my_study"
+  output_dir: "results/"
+
+input:
+  reads: "data/raw/*.fastq.gz"
+  platform: "hifi"  # hifi | nanopore
+  metadata: "data/metadata.tsv"
+
+qc:
+  min_quality: 20
+  min_length: 1000
+  max_length: null
+  host_reference: null  # path to host genome, null to skip
+
+assembly:
+  enabled: false
+  tool: "metaflye"  # metaflye | hifiasm-meta
+
+classify:
+  bacteriome:
+    db: "dbs/gtdb_kraken2"
+    confidence: 0.2
+  mycobiome:
+    db: "dbs/unite_kraken2"
+    confidence: 0.2
+  virome:
+    tool: "genomad"  # genomad | virsorter2
+    db: "dbs/genomad_db"
+
+unifier:
+  normalization: "clr"  # clr | relative | tss
+  min_prevalence: 0.1
+  taxonomy_backend: "ncbi"
+
+analysis:
+  cooccurrence:
+    method: "spieceasi"  # spieceasi | sparcc
+    min_abundance: 0.01
+  diversity:
+    alpha_metrics: ["shannon", "simpson", "chao1"]
+    beta_metrics: ["bray_curtis", "unifrac"]
+  differential:
+    method: "ancombc"  # ancombc | aldex2
+
+metadata_correlation:
+  tools: ["maaslin2", "lefse"]
+  random_forest: true
+
+reporting:
+  interactive_dashboard: true
+  static_figures: true
+  formats: ["html", "png", "svg"]

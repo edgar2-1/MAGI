@@ -1,0 +1,52 @@
+# =============================================================================
+# MAGI — Metagenomic Analysis by Genome Integration
+# Main Snakemake Workflow
+# =============================================================================
+#
+# Pipeline flow:
+#   1. QC          — Quality filtering, adapter trimming, host decontamination
+#   2. Assembly    — (Optional) Metagenomic assembly with metaflye or hifiasm-meta
+#   3. Classify    — Taxonomic classification of bacteriome, mycobiome, and virome
+#                    These three classification steps run in parallel.
+#   4. Unifier     — Merge and normalize abundance tables across all three kingdoms
+#   5. Analysis    — Co-occurrence networks, alpha/beta diversity, differential abundance
+#   6. Metadata    — Metadata correlation via MaAsLin2, LEfSe, and random forest
+#   7. Reporting   — Generate interactive dashboard and static figures
+# =============================================================================
+
+configfile: "config/default_config.yaml"
+
+
+# ---------------------------------------------------------------------------
+# Include modular rule files
+# ---------------------------------------------------------------------------
+include: "rules/qc.smk"
+include: "rules/assembly.smk"
+include: "rules/classify.smk"
+include: "rules/unifier.smk"
+include: "rules/analysis.smk"
+include: "rules/metadata.smk"
+include: "rules/reporting.smk"
+
+
+# ---------------------------------------------------------------------------
+# Helper: build the list of expected final outputs
+# ---------------------------------------------------------------------------
+def get_final_outputs():
+    """Return the list of target files the pipeline must produce."""
+    outputs = []
+
+    # Reporting outputs are always requested
+    outdir = config["project"]["output_dir"]
+    outputs.append(f"{outdir}/report/dashboard.html")
+    outputs.append(f"{outdir}/report/figures_done.flag")
+
+    return outputs
+
+
+# ---------------------------------------------------------------------------
+# Default target rule — requests all final reporting outputs
+# ---------------------------------------------------------------------------
+rule all:
+    input:
+        get_final_outputs(),

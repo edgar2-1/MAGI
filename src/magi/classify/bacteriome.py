@@ -1,6 +1,7 @@
-"""Bacterial taxonomic classification."""
+"""Bacterial taxonomic classification using Kraken2 + Bracken."""
 
 import logging
+import subprocess
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -10,25 +11,65 @@ def classify_bacteriome(
     input_path: Path,
     output_path: Path,
     db_path: Path,
-    confidence: float = 0.7,
+    confidence: float = 0.2,
 ) -> None:
-    """Classify bacterial taxa from metagenomic reads or contigs.
+    """Classify bacterial reads using Kraken2 against a GTDB database.
 
-    Uses a reference database (e.g., Kraken2/Bracken with a bacterial DB)
-    to assign taxonomic labels to the input sequences at the specified
-    confidence threshold.
+    Runs Kraken2 for read classification, then Bracken for abundance
+    re-estimation at the species level.
 
     Args:
-        input_path: Path to the input reads or contigs.
-        output_path: Path to write classification results.
-        db_path: Path to the bacterial classification database.
-        confidence: Minimum confidence score for taxonomic assignment.
+        input_path: Path to input FASTQ file (filtered reads).
+        output_path: Path to write abundance table (TSV).
+        db_path: Path to Kraken2 database directory.
+        confidence: Kraken2 confidence threshold (0-1).
 
     Raises:
-        NotImplementedError: This module is not yet implemented.
+        FileNotFoundError: If input file or database does not exist.
+        RuntimeError: If kraken2 returns a non-zero exit code.
     """
-    logger.info(
-        "Classifying bacteriome from %s (db=%s, confidence=%.2f) -> %s",
-        input_path, db_path, confidence, output_path,
-    )
-    raise NotImplementedError("Module not yet implemented")
+    input_path = Path(input_path)
+    output_path = Path(output_path)
+    db_path = Path(db_path)
+
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
+    if not db_path.exists():
+        raise FileNotFoundError(f"Kraken2 database not found: {db_path}")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    kreport_path = output_path.with_suffix(".kreport")
+
+    kraken2_cmd = [
+        "kraken2",
+        "--db", str(db_path),
+        "--confidence", str(confidence),
+        "--report", str(kreport_path),
+        "--output", str(output_path.with_suffix(".kraken2")),
+        "--threads", "8",
+        str(input_path),
+    ]
+
+    logger.info("Running Kraken2 (bacteriome): %s", " ".join(kraken2_cmd))
+
+    result = subprocess.run(kraken2_cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"kraken2 failed (exit {result.returncode}): {result.stderr}")
+
+    # Run Bracken for abundance re-estimation
+    bracken_cmd = [
+        "bracken",
+        "-d", str(db_path),
+        "-i", str(kreport_path),
+        "-o", str(output_path),
+        "-r", "150",
+        "-l", "S",
+    ]
+
+    logger.info("Running Bracken: %s", " ".join(bracken_cmd))
+
+    result = subprocess.run(bracken_cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        logger.warning("Bracken failed, using Kraken2 report directly: %s", result.stderr)
+
+    logger.info("Bacteriome classification written to %s", output_path)

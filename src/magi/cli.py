@@ -9,6 +9,8 @@ from pathlib import Path
 
 import click
 
+import subprocess as _subprocess
+
 logger = logging.getLogger(__name__)
 
 
@@ -25,20 +27,42 @@ def main(ctx, config):
 
 
 @main.command()
+@click.option("--cores", type=int, default=4, help="Number of cores for Snakemake.")
+@click.option("--dryrun", is_flag=True, default=False, help="Show what would be done.")
 @click.pass_context
-def run(ctx):
-    """Run the full MAGI pipeline using Snakemake.
-
-    Loads the configuration YAML and invokes the Snakemake workflow
-    end-to-end.
-    """
+def run(ctx, cores, dryrun):
+    """Run the full MAGI pipeline using Snakemake."""
     config_path = ctx.obj.get("config")
     if config_path is None:
         click.echo("Error: --config is required for the 'run' command.", err=True)
         raise SystemExit(1)
+
+    snakefile = Path(__file__).parent.parent.parent / "workflow" / "Snakefile"
+    if not snakefile.exists():
+        snakefile = Path("workflow") / "Snakefile"
+
     click.echo(f"Loading configuration from {config_path}")
-    # TODO: invoke Snakemake with config
-    click.echo("Invoking Snakemake workflow...")
+    click.echo(f"Invoking Snakemake workflow (cores={cores}, dryrun={dryrun})")
+
+    cmd = [
+        "snakemake",
+        "--snakefile", str(snakefile),
+        "--configfile", str(config_path),
+        "--cores", str(cores),
+        "--use-conda",
+    ]
+    if dryrun:
+        cmd.append("--dryrun")
+
+    result = _subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.stdout:
+        click.echo(result.stdout)
+    if result.returncode != 0:
+        click.echo(f"Snakemake failed:\n{result.stderr}", err=True)
+        raise SystemExit(1)
+
+    click.echo("Pipeline completed successfully.")
 
 
 @main.command()

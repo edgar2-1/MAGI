@@ -2,8 +2,9 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from magi.qc import trim_adapters, remove_host
+from magi.qc import trim_adapters, remove_host  # noqa: F401
 from magi.qc.filtering import filter_reads as filter_reads_direct
+from magi.qc.trimming import trim_adapters as trim_adapters_direct
 
 
 def test_filter_reads_builds_correct_fastp_command_hifi(tmp_path):
@@ -54,9 +55,25 @@ def test_filter_reads_raises_on_fastp_failure(tmp_path):
             filter_reads_direct(input_f, output_f, platform="hifi")
 
 
-def test_trim_adapters_raises_not_implemented():
-    with pytest.raises(NotImplementedError):
-        trim_adapters("input.fastq", "output.fastq")
+def test_trim_adapters_builds_correct_command(tmp_path):
+    input_f = tmp_path / "reads.fastq"
+    input_f.touch()
+    output_f = tmp_path / "trimmed.fastq"
+
+    with patch("magi.qc.trimming.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
+        trim_adapters_direct(input_f, output_f)
+
+    mock_run.assert_called_once()
+    cmd = mock_run.call_args[0][0]
+    assert "fastp" in cmd
+    assert str(input_f) in cmd
+    assert str(output_f) in cmd
+
+
+def test_trim_adapters_raises_on_missing_input(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        trim_adapters_direct(tmp_path / "nonexistent.fastq", tmp_path / "out.fastq")
 
 
 def test_remove_host_raises_not_implemented():

@@ -311,29 +311,46 @@ def db():
               help="Download databases for all kingdoms.")
 @click.option("--kingdom", type=click.Choice(["bacteria", "fungi", "virus"]),
               default=None, help="Download database for a specific kingdom.")
-def download(download_all, kingdom):
+@click.option("--db-dir", type=click.Path(), default="databases",
+              help="Directory to store databases.")
+def download(download_all, kingdom, db_dir):
     """Download reference databases.
 
     Fetches the required classification databases for one or all
     kingdoms.
     """
+    from magi.db.manager import download_database, DB_REGISTRY
+
+    db_path = Path(db_dir)
+
     if download_all:
         click.echo("Downloading databases for all kingdoms...")
+        for k in DB_REGISTRY:
+            click.echo(f"  Downloading {k}...")
+            download_database(k, db_path)
+            click.echo(f"  {k} complete.")
     elif kingdom:
         click.echo(f"Downloading database for kingdom={kingdom}...")
+        download_database(kingdom, db_path)
+        click.echo(f"Download complete for {kingdom}.")
     else:
         click.echo("Error: specify --all or --kingdom.", err=True)
         raise SystemExit(1)
-    # TODO: implement database download logic
-    click.echo("Database download not yet implemented.")
 
 
 @db.command()
-def status():
+@click.option("--db-dir", type=click.Path(), default="databases",
+              help="Directory where databases are stored.")
+def status(db_dir):
     """Show the status of installed reference databases."""
+    from magi.db.manager import get_db_status
+
+    db_path = Path(db_dir)
     click.echo("Checking database status...")
-    # TODO: implement database status check
-    click.echo("Database status check not yet implemented.")
+    statuses = get_db_status(db_path)
+    for kingdom, info in statuses.items():
+        state = "INSTALLED" if info["installed"] else "NOT INSTALLED"
+        click.echo(f"  {kingdom}: {info['name']} - {state}")
 
 
 if __name__ == "__main__":

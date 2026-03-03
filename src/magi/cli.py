@@ -246,18 +246,35 @@ def analysis(input_path, method, metadata, output_path):
 @click.option("--input", "input_path", required=True, type=click.Path(exists=True),
               help="Path to analysis results directory.")
 @click.option("--output", "output_path", required=True, type=click.Path(),
-              help="Path to write the report.")
-@click.option("--formats", multiple=True, default=("html",),
-              help="Output formats for the report (e.g., html, pdf, png).")
+              help="Path to write the report output directory.")
+@click.option("--formats", multiple=True, default=("png",),
+              help="Output formats for static figures (e.g., png, svg).")
 def report(input_path, output_path, formats):
     """Generate reports and visualizations.
 
     Produces an interactive dashboard and publication-quality figures
     from the analysis results.
     """
-    click.echo(f"Generating report from {input_path}")
-    # TODO: implement in Phase 3
-    click.echo("Reporting module not yet implemented (Phase 3).")
+    from magi.reporting.dashboard import generate_dashboard
+    from magi.reporting.figures import generate_figures
+
+    results_dir = Path(input_path)
+    output_dir = Path(output_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    click.echo(f"Generating report from {results_dir}")
+
+    # Interactive HTML dashboard
+    dashboard_path = output_dir / "dashboard.html"
+    generate_dashboard(results_dir, dashboard_path)
+    click.echo(f"  Dashboard -> {dashboard_path}")
+
+    # Static publication figures
+    figures_dir = output_dir / "figures"
+    generate_figures(results_dir, figures_dir, formats=list(formats))
+    click.echo(f"  Figures -> {figures_dir}")
+
+    click.echo(f"Report complete. Output in {output_dir}")
 
 
 @main.group()

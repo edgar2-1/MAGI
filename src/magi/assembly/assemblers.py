@@ -1,6 +1,7 @@
-"""Metagenomic assembly using long-read assemblers."""
+"""Metagenomic assembly using metaFlye or hifiasm-meta."""
 
 import logging
+import subprocess
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -10,22 +11,62 @@ def run_assembly(
     input_path: Path,
     output_path: Path,
     tool: str = "metaflye",
+    threads: int = 8,
 ) -> None:
     """Assemble metagenomic reads into contigs.
 
-    Runs the specified assembler on the input reads to produce
-    assembled contigs for downstream analysis.
-
     Args:
-        input_path: Path to the input FASTQ file with quality-filtered reads.
-        output_path: Path to write the assembled contigs (FASTA).
-        tool: Assembly tool to use (e.g., "metaflye", "hifiasm-meta").
+        input_path: Path to input FASTQ file (filtered reads).
+        output_path: Path to write assembled contigs (FASTA).
+        tool: Assembly tool ("metaflye" or "hifiasm-meta").
+        threads: Number of threads.
 
     Raises:
-        NotImplementedError: This module is not yet implemented.
+        FileNotFoundError: If input file does not exist.
+        ValueError: If tool is not recognized.
+        RuntimeError: If the assembler returns a non-zero exit code.
     """
-    logger.info(
-        "Running assembly with %s on %s -> %s",
-        tool, input_path, output_path,
-    )
-    raise NotImplementedError("Module not yet implemented")
+    input_path = Path(input_path)
+    output_path = Path(output_path)
+
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
+    if tool not in ("metaflye", "hifiasm-meta"):
+        raise ValueError(f"Unknown assembly tool: {tool}. Use 'metaflye' or 'hifiasm-meta'.")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    work_dir = output_path.parent / "assembly_work"
+
+    if tool == "metaflye":
+        cmd = [
+            "flye",
+            "--meta",
+            "--pacbio-hifi", str(input_path),
+            "--out-dir", str(work_dir),
+            "--threads", str(threads),
+        ]
+    else:
+        cmd = [
+            "hifiasm_meta",
+            "-t", str(threads),
+            "-o", str(work_dir / "asm"),
+            str(input_path),
+        ]
+
+    logger.info("Running %s: %s", tool, " ".join(cmd))
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"{tool} failed (exit {result.returncode}): {result.stderr}")
+
+    # Copy main output to expected path
+    if tool == "metaflye":
+        contigs_src = work_dir / "assembly.fasta"
+    else:
+        contigs_src = work_dir / "asm.p_ctg.fa"
+
+    if contigs_src.exists():
+        import shutil
+        shutil.copy2(contigs_src, output_path)
+
+    logger.info("Assembly complete: %s -> %s", tool, output_path)

@@ -27,6 +27,7 @@ classifiers = [
 dependencies = [
     "click",
     "pyyaml",
+    "pydantic>=2.0",
     "pandas",
     "numpy",
     "scipy",
@@ -40,6 +41,7 @@ dependencies = [
     "scikit-learn",
     "statsmodels",
     "snakemake-executor-plugin-cluster-generic",
+    "tqdm",
 ]
 
 [project.urls]

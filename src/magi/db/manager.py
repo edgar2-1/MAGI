@@ -3,8 +3,11 @@
 import json
 import logging
 import subprocess
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +59,20 @@ def download_database(kingdom: str, db_dir: Path) -> Path:
 
     logger.info("Downloading %s database from %s", entry["name"], url)
 
-    # Download
-    cmd_download = ["curl", "-L", "-o", str(archive), url]
-    result = subprocess.run(cmd_download, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(f"Download failed for {kingdom}: {result.stderr}")
+    # Download with progress
+    class _DownloadProgress(tqdm):
+        """Progress bar for urllib downloads."""
+        def update_to(self, blocks=1, block_size=1, total_size=None):
+            if total_size is not None:
+                self.total = total_size
+            self.update(blocks * block_size - self.n)
+
+    try:
+        with _DownloadProgress(unit="B", unit_scale=True, unit_divisor=1024,
+                               desc=f"Downloading {entry['name']}") as pbar:
+            urllib.request.urlretrieve(url, str(archive), reporthook=pbar.update_to)
+    except (urllib.error.URLError, OSError) as e:
+        raise RuntimeError(f"Download failed for {kingdom}: {e}") from e
 
     # Extract
     cmd_extract = ["tar", "-xzf", str(archive), "-C", str(target_dir)]

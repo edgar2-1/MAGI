@@ -421,11 +421,12 @@ def download(download_all, kingdom, db_dir):
     db_path = Path(db_dir)
 
     if download_all:
-        click.echo("Downloading databases for all kingdoms...")
-        for k in DB_REGISTRY:
-            click.echo(f"  Downloading {k}...")
+        kingdoms = list(DB_REGISTRY.keys())
+        click.echo(f"Downloading databases for {len(kingdoms)} kingdoms...")
+        for i, k in enumerate(kingdoms, 1):
+            click.echo(f"  [{i}/{len(kingdoms)}] Downloading {k}...")
             download_database(k, db_path)
-            click.echo(f"  {k} complete.")
+            click.echo(f"  [{i}/{len(kingdoms)}] {k} complete.")
     elif kingdom:
         click.echo(f"Downloading database for kingdom={kingdom}...")
         download_database(kingdom, db_path)

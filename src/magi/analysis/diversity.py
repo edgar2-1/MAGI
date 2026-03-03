@@ -167,15 +167,8 @@ def run_permanova(
     # Run PERMANOVA
     result = skbio_permanova(dm, grouping, permutations=permutations)
 
-    # Calculate R2 = SS_between / SS_total
-    r2 = float(result["test statistic"] * result["number of groups"] /
-               (result["test statistic"] * result["number of groups"] +
-                (len(shared) - result["number of groups"])))
-
-    # More direct: use sums of squares from the result if available,
-    # otherwise compute from F-statistic:
-    # F = (SS_between / (k-1)) / (SS_within / (n-k))
-    # R2 = SS_between / SS_total = (F * (k-1)) / (F * (k-1) + (n-k))
+    # R2 from F-statistic: F = (SS_between/(k-1)) / (SS_within/(n-k))
+    # R2 = (F*(k-1)) / (F*(k-1) + (n-k))
     f_stat = float(result["test statistic"])
     k = int(result["number of groups"])
     n = len(shared)

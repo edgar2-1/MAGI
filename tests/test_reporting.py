@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from magi.reporting.biplot_data import compute_biplot_data
 from magi.reporting.dashboard import generate_dashboard
 from magi.reporting.figures import generate_biplot, generate_figures
 
@@ -116,3 +117,20 @@ def test_generate_biplot_insufficient_taxa(tmp_path):
     generate_biplot(matrix_path, output_dir)
     # Should not crash, just warn
     assert not (output_dir / "biplot.png").exists()
+
+
+def test_compute_biplot_data():
+    import numpy as np
+    matrix = pd.DataFrame(
+        np.random.rand(5, 4) * 100,
+        index=[f"s{i}" for i in range(5)],
+        columns=["E.coli", "S.aureus", "A.niger", "Phage_T4"],
+    )
+    bp = compute_biplot_data(matrix, n_top_taxa=3)
+    assert bp.sample_scores.shape == (5, 2)
+    assert bp.taxa_loadings.shape == (4, 2)
+    assert len(bp.sample_names) == 5
+    assert len(bp.taxa_names) == 4
+    assert len(bp.top_taxa_indices) == 3
+    assert len(bp.var_explained) == 2
+    assert bp.scale > 0

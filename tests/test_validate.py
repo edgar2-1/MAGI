@@ -1,4 +1,6 @@
-from magi.validate import check_tools, validate_config
+import pytest
+
+from magi.validate import MAGIConfig, check_tools, validate_config
 
 
 def test_check_tools_returns_list():
@@ -69,3 +71,31 @@ def test_validate_config_invalid_normalize(tmp_path):
     cfg.write_text("samples: []\noutput_dir: results/\nnormalize: invalid\n")
     errors, warnings = validate_config(cfg)
     assert any("normalize" in e for e in errors)
+
+
+# ---- Pydantic schema tests ----
+
+
+def test_magi_config_valid_minimal():
+    config = MAGIConfig(samples=[], output_dir="results/")
+    assert config.output_dir == "results/"
+
+
+def test_magi_config_with_platform():
+    config = MAGIConfig(samples=[], output_dir="results/", platform="hifi")
+    assert config.platform == "hifi"
+
+
+def test_magi_config_invalid_platform():
+    with pytest.raises(Exception):
+        MAGIConfig(samples=[], output_dir="results/", platform="illumina")
+
+
+def test_magi_config_invalid_normalize():
+    with pytest.raises(Exception):
+        MAGIConfig(samples=[], output_dir="results/", normalize="invalid")
+
+
+def test_magi_config_allows_extra_fields():
+    config = MAGIConfig(samples=[], output_dir="results/", custom_field="value")
+    assert config.custom_field == "value"

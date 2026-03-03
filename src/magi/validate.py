@@ -3,9 +3,10 @@
 import logging
 import shutil
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import yaml
+from pydantic import BaseModel, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,56 @@ OPTIONAL_TOOLS = {
 }
 
 REQUIRED_CONFIG_KEYS = ["samples", "output_dir"]
+
+
+class SampleEntry(BaseModel):
+    """A sample entry that can be a path string or a dict with a path key."""
+    path: str
+
+
+class DatabaseConfig(BaseModel):
+    """Database paths per kingdom."""
+    bacteria: Optional[str] = None
+    fungi: Optional[str] = None
+    virus: Optional[str] = None
+
+
+class MAGIConfig(BaseModel):
+    """MAGI pipeline configuration schema."""
+    samples: Union[List[str], List[dict], dict]
+    output_dir: str
+    platform: Optional[str] = None
+    normalize: Optional[str] = None
+    databases: Optional[Dict[str, Optional[str]]] = None
+    min_quality: Optional[int] = None
+    min_length: Optional[int] = None
+    confidence: Optional[float] = None
+    host_reference: Optional[str] = None
+    cooccurrence_method: Optional[str] = None
+    metadata: Optional[str] = None
+
+    model_config = {"extra": "allow"}
+
+    @field_validator("platform")
+    @classmethod
+    def validate_platform(cls, v):
+        if v is not None and v not in ("hifi", "nanopore"):
+            raise ValueError(f"Invalid platform: '{v}' (must be 'hifi' or 'nanopore')")
+        return v
+
+    @field_validator("normalize")
+    @classmethod
+    def validate_normalize(cls, v):
+        if v is not None and v not in ("clr", "relative", "tss"):
+            raise ValueError(f"Invalid normalize method: '{v}'")
+        return v
+
+    @field_validator("cooccurrence_method")
+    @classmethod
+    def validate_cooccurrence_method(cls, v):
+        if v is not None and v not in ("spieceasi", "sparcc"):
+            raise ValueError(f"Invalid cooccurrence method: '{v}'")
+        return v
 
 
 def check_tools(include_optional: bool = False) -> List[Dict[str, str]]:
@@ -52,7 +103,7 @@ def check_tools(include_optional: bool = False) -> List[Dict[str, str]]:
 
 
 def validate_config(config_path: Path) -> Tuple[List[str], List[str]]:
-    """Validate a MAGI configuration file.
+    """Validate a MAGI configuration file using pydantic schema.
 
     Args:
         config_path: Path to YAML config file.
@@ -83,37 +134,32 @@ def validate_config(config_path: Path) -> Tuple[List[str], List[str]]:
         errors.append("Config must be a YAML mapping (dict)")
         return errors, warnings
 
-    # Check required keys
-    for key in REQUIRED_CONFIG_KEYS:
-        if key not in config:
-            errors.append(f"Missing required key: '{key}'")
+    # Validate with pydantic schema
+    try:
+        parsed = MAGIConfig(**config)
+    except Exception as e:
+        # Extract individual validation errors
+        for err_line in str(e).split("\n"):
+            err_line = err_line.strip()
+            if err_line and not err_line.startswith("For further"):
+                errors.append(err_line)
+        # Check for missing required keys specifically
+        for key in REQUIRED_CONFIG_KEYS:
+            if key not in config:
+                if not any(key in e for e in errors):
+                    errors.append(f"Missing required key: '{key}'")
+        return errors, warnings
 
-    # Validate samples
-    if "samples" in config:
-        samples = config["samples"]
-        if not isinstance(samples, (list, dict)):
-            errors.append("'samples' must be a list or mapping")
-        elif isinstance(samples, list):
-            for i, s in enumerate(samples):
-                if isinstance(s, str) and not Path(s).exists():
-                    warnings.append(f"Sample file not found: {s}")
-                elif isinstance(s, dict):
-                    if "path" in s and not Path(s["path"]).exists():
-                        warnings.append(f"Sample file not found: {s['path']}")
+    # Warnings for file existence (not errors since files may not exist yet)
+    if isinstance(parsed.samples, list):
+        for s in parsed.samples:
+            if isinstance(s, str) and s and not Path(s).exists():
+                warnings.append(f"Sample file not found: {s}")
+            elif isinstance(s, dict) and "path" in s and not Path(s["path"]).exists():
+                warnings.append(f"Sample file not found: {s['path']}")
 
-    # Validate platform
-    if "platform" in config:
-        if config["platform"] not in ("hifi", "nanopore"):
-            errors.append(f"Invalid platform: '{config['platform']}' (must be 'hifi' or 'nanopore')")
-
-    # Validate normalization
-    if "normalize" in config:
-        if config["normalize"] not in ("clr", "relative", "tss"):
-            errors.append(f"Invalid normalize method: '{config['normalize']}'")
-
-    # Validate database paths
-    if "databases" in config and isinstance(config["databases"], dict):
-        for kingdom, db_path in config["databases"].items():
+    if parsed.databases:
+        for kingdom, db_path in parsed.databases.items():
             if db_path and not Path(db_path).exists():
                 warnings.append(f"Database path not found for {kingdom}: {db_path}")
 

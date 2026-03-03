@@ -142,16 +142,7 @@ def generate_biplot(
     formats: Optional[List[str]] = None,
     n_top_taxa: int = 10,
 ) -> None:
-    """Generate a log-ratio biplot showing samples and top taxa loadings.
-
-    Args:
-        matrix_path: Path to the unified feature matrix TSV.
-        output_path: Directory to write the biplot figure.
-        formats: Output formats. Defaults to ["png"].
-        n_top_taxa: Number of top taxa to show as arrows.
-    """
-    import numpy as np
-
+    """Generate a log-ratio biplot showing samples and top taxa loadings."""
     if formats is None:
         formats = ["png"]
 
@@ -168,57 +159,35 @@ def generate_biplot(
         logger.warning("Need at least 2 taxa for biplot")
         return
 
-    # CLR transform (add pseudocount to handle zeros)
-    pseudo = matrix + 1
-    log_data = np.log(pseudo)
-    clr = log_data.subtract(log_data.mean(axis=1), axis=0)
+    from magi.reporting.biplot_data import compute_biplot_data
+    bp = compute_biplot_data(matrix, n_top_taxa=n_top_taxa)
 
-    # SVD for PCA on CLR-transformed data
-    centered = clr - clr.mean()
-    U, S, Vt = np.linalg.svd(centered.values, full_matrices=False)
-
-    # Sample scores (first 2 PCs)
-    sample_scores = U[:, :2] * S[:2]
-
-    # Taxa loadings (first 2 PCs)
-    taxa_loadings = Vt[:2, :].T
-
-    # Select top taxa by loading magnitude
-    loading_magnitude = np.sqrt(taxa_loadings[:, 0]**2 + taxa_loadings[:, 1]**2)
-    top_idx = np.argsort(loading_magnitude)[-n_top_taxa:]
-
-    # Explained variance
-    total_var = np.sum(S**2)
-    var_explained = S[:2]**2 / total_var * 100
-
-    # Plot
     fig, ax = plt.subplots(figsize=(10, 8))
 
     # Samples
-    ax.scatter(sample_scores[:, 0], sample_scores[:, 1], s=60, alpha=0.8,
+    ax.scatter(bp.sample_scores[:, 0], bp.sample_scores[:, 1], s=60, alpha=0.8,
               edgecolors="black", linewidth=0.5, zorder=3, label="Samples")
-    for i, sample in enumerate(matrix.index):
-        ax.annotate(sample, (sample_scores[i, 0], sample_scores[i, 1]),
+    for i, sample in enumerate(bp.sample_names):
+        ax.annotate(sample, (bp.sample_scores[i, 0], bp.sample_scores[i, 1]),
                    fontsize=7, ha="left", va="bottom")
 
     # Taxa arrows
-    scale = np.max(np.abs(sample_scores)) / np.max(np.abs(taxa_loadings[top_idx])) * 0.8
-    for idx in top_idx:
+    for idx in bp.top_taxa_indices:
         ax.annotate(
             "",
-            xy=(taxa_loadings[idx, 0] * scale, taxa_loadings[idx, 1] * scale),
+            xy=(bp.taxa_loadings[idx, 0] * bp.scale, bp.taxa_loadings[idx, 1] * bp.scale),
             xytext=(0, 0),
             arrowprops=dict(arrowstyle="->", color="red", lw=1.5),
         )
         ax.text(
-            taxa_loadings[idx, 0] * scale * 1.1,
-            taxa_loadings[idx, 1] * scale * 1.1,
-            matrix.columns[idx],
+            bp.taxa_loadings[idx, 0] * bp.scale * 1.1,
+            bp.taxa_loadings[idx, 1] * bp.scale * 1.1,
+            bp.taxa_names[idx],
             color="red", fontsize=8, ha="center", va="center",
         )
 
-    ax.set_xlabel(f"PC1 ({var_explained[0]:.1f}% variance)")
-    ax.set_ylabel(f"PC2 ({var_explained[1]:.1f}% variance)")
+    ax.set_xlabel(f"PC1 ({bp.var_explained[0]:.1f}% variance)")
+    ax.set_ylabel(f"PC2 ({bp.var_explained[1]:.1f}% variance)")
     ax.set_title("Log-Ratio Biplot")
     ax.axhline(0, color="gray", linewidth=0.5, linestyle="--")
     ax.axvline(0, color="gray", linewidth=0.5, linestyle="--")

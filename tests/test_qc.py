@@ -4,6 +4,7 @@ import pytest
 
 from magi.qc import trim_adapters, remove_host  # noqa: F401
 from magi.qc.filtering import filter_reads as filter_reads_direct
+from magi.qc.host_removal import remove_host as remove_host_direct
 from magi.qc.trimming import trim_adapters as trim_adapters_direct
 
 
@@ -76,6 +77,31 @@ def test_trim_adapters_raises_on_missing_input(tmp_path):
         trim_adapters_direct(tmp_path / "nonexistent.fastq", tmp_path / "out.fastq")
 
 
-def test_remove_host_raises_not_implemented():
-    with pytest.raises(NotImplementedError):
-        remove_host("input.fastq", "output.fastq", "host.fna")
+def test_remove_host_calls_minimap2_and_samtools(tmp_path):
+    input_f = tmp_path / "reads.fastq"
+    input_f.touch()
+    host_ref = tmp_path / "host.fna"
+    host_ref.touch()
+    output_f = tmp_path / "dehosted.fastq"
+
+    with patch("magi.qc.host_removal.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
+        remove_host_direct(input_f, output_f, host_ref)
+
+    assert mock_run.call_count == 2
+    first_cmd = mock_run.call_args_list[0][0][0]
+    second_cmd = mock_run.call_args_list[1][0][0]
+    assert "minimap2" in first_cmd
+    assert "samtools" in second_cmd
+
+
+def test_remove_host_raises_on_missing_input(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        remove_host_direct(tmp_path / "missing.fastq", tmp_path / "out.fastq", tmp_path / "host.fna")
+
+
+def test_remove_host_raises_on_missing_reference(tmp_path):
+    input_f = tmp_path / "reads.fastq"
+    input_f.touch()
+    with pytest.raises(FileNotFoundError):
+        remove_host_direct(input_f, tmp_path / "out.fastq", tmp_path / "missing_host.fna")

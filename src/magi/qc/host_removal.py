@@ -1,6 +1,7 @@
-"""Host genome removal from metagenomic reads."""
+"""Host read removal via minimap2 alignment and samtools filtering."""
 
 import logging
+import subprocess
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -11,21 +12,60 @@ def remove_host(
     output_path: Path,
     host_reference: Path,
 ) -> None:
-    """Remove host-derived reads by mapping against a reference genome.
+    """Remove host-derived reads by aligning to a host reference genome.
 
-    Aligns the input reads to the host reference genome and discards
-    any reads that map, retaining only non-host metagenomic reads.
+    Aligns reads to the host reference with minimap2, then extracts
+    unmapped reads (non-host) using samtools.
 
     Args:
-        input_path: Path to the input FASTQ file.
-        output_path: Path to write the decontaminated FASTQ file.
-        host_reference: Path to the host reference genome (FASTA).
+        input_path: Path to input FASTQ file.
+        output_path: Path to write host-free FASTQ file.
+        host_reference: Path to host reference genome (FASTA).
 
     Raises:
-        NotImplementedError: This module is not yet implemented.
+        FileNotFoundError: If input or host reference file does not exist.
+        RuntimeError: If minimap2 or samtools returns a non-zero exit code.
     """
-    logger.info(
-        "Removing host reads from %s using reference %s -> %s",
-        input_path, host_reference, output_path,
-    )
-    raise NotImplementedError("Module not yet implemented")
+    input_path = Path(input_path)
+    output_path = Path(output_path)
+    host_reference = Path(host_reference)
+
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
+    if not host_reference.exists():
+        raise FileNotFoundError(f"Host reference not found: {host_reference}")
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    bam_path = output_path.with_suffix(".host_aligned.bam")
+
+    # Step 1: Align reads to host reference
+    minimap2_cmd = [
+        "minimap2",
+        "-a",
+        "-x", "map-hifi",
+        "-t", "4",
+        str(host_reference),
+        str(input_path),
+    ]
+
+    logger.info("Aligning to host reference: %s", " ".join(minimap2_cmd))
+
+    result = subprocess.run(minimap2_cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"minimap2 failed (exit {result.returncode}): {result.stderr}")
+
+    # Step 2: Extract unmapped reads (non-host)
+    samtools_cmd = [
+        "samtools", "fastq",
+        "-f", "4",
+        "-0", str(output_path),
+        str(bam_path),
+    ]
+
+    logger.info("Extracting non-host reads: %s", " ".join(samtools_cmd))
+
+    result = subprocess.run(samtools_cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"samtools failed (exit {result.returncode}): {result.stderr}")
+
+    logger.info("Host-free reads written to %s", output_path)

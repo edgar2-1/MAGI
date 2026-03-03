@@ -183,20 +183,63 @@ def unifier(input_path, normalize_method, min_prevalence, output_path):
 
 @main.command()
 @click.option("--input", "input_path", required=True, type=click.Path(exists=True),
-              help="Path to the unified feature matrix.")
+              help="Path to the unified feature matrix (TSV).")
 @click.option("--method", type=click.Choice(["spieceasi", "sparcc"]),
               default="spieceasi", help="Co-occurrence network method.")
+@click.option("--metadata", type=click.Path(exists=True), default=None,
+              help="Path to metadata TSV for differential abundance.")
 @click.option("--output", "output_path", required=True, type=click.Path(),
-              help="Path to write analysis results.")
-def analysis(input_path, method, output_path):
+              help="Path to write analysis results directory.")
+def analysis(input_path, method, metadata, output_path):
     """Run downstream analyses on the unified matrix.
 
     Includes co-occurrence network inference, diversity calculations,
     and differential abundance testing.
     """
-    click.echo(f"Running analysis on {input_path} with method={method}")
-    # TODO: implement in Phase 2
-    click.echo("Analysis module not yet implemented (Phase 2).")
+    import json
+
+    import networkx as nx
+    import pandas as pd
+
+    from magi.analysis.cooccurrence import run_cooccurrence
+    from magi.analysis.differential import run_differential
+    from magi.analysis.diversity import compute_alpha_diversity, compute_beta_diversity
+
+    matrix = pd.read_csv(input_path, sep="\t", index_col=0)
+    output_dir = Path(output_path)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    click.echo(f"Running analysis on {input_path} ({matrix.shape[0]} samples x {matrix.shape[1]} taxa)")
+
+    # Co-occurrence network
+    G = run_cooccurrence(matrix, method=method)
+    network_path = output_dir / "cooccurrence_network.json"
+    network_data = nx.node_link_data(G)
+    with open(network_path, "w") as f:
+        json.dump(network_data, f, indent=2)
+    click.echo(f"  Network: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges -> {network_path}")
+
+    # Alpha diversity
+    alpha = compute_alpha_diversity(matrix)
+    alpha_path = output_dir / "alpha_diversity.tsv"
+    alpha.to_csv(alpha_path, sep="\t")
+    click.echo(f"  Alpha diversity -> {alpha_path}")
+
+    # Beta diversity
+    beta = compute_beta_diversity(matrix)
+    beta_path = output_dir / "beta_diversity.tsv"
+    beta.to_csv(beta_path, sep="\t")
+    click.echo(f"  Beta diversity -> {beta_path}")
+
+    # Differential abundance (if metadata provided)
+    if metadata:
+        meta_df = pd.read_csv(metadata, sep="\t", index_col=0)
+        diff = run_differential(matrix, meta_df)
+        diff_path = output_dir / "differential_abundance.tsv"
+        diff.to_csv(diff_path, sep="\t")
+        click.echo(f"  Differential abundance -> {diff_path}")
+
+    click.echo(f"Analysis complete. Results in {output_dir}")
 
 
 @main.command()

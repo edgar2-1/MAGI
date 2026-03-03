@@ -38,9 +38,11 @@ def generate_dashboard(results_dir: Path, output_path: Path) -> None:
     alpha_path = results_dir / "alpha_diversity.tsv"
     if alpha_path.exists():
         alpha = pd.read_csv(alpha_path, sep="\t", index_col=0)
+        alpha_reset = alpha.reset_index()
+        x_col = alpha_reset.columns[0]
         fig = px.bar(
-            alpha.reset_index(),
-            x="index",
+            alpha_reset,
+            x=x_col,
             y=alpha.columns.tolist(),
             barmode="group",
             title="Alpha Diversity by Sample",

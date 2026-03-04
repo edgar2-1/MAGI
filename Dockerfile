@@ -25,7 +25,7 @@ COPY src/ src/
 COPY workflow/ workflow/
 COPY config/ config/
 
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir .
 
 # Default entrypoint
 ENTRYPOINT ["magi"]

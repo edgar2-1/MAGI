@@ -81,13 +81,19 @@ def compute_beta_diversity(
 
 def _shannon(row: pd.Series) -> float:
     """Shannon diversity index H'."""
-    props = row[row > 0] / row.sum()
+    total = row.sum()
+    if total == 0:
+        return 0.0
+    props = row[row > 0] / total
     return float(-np.sum(props * np.log(props)))
 
 
 def _simpson(row: pd.Series) -> float:
     """Simpson diversity index (1 - D)."""
-    props = row[row > 0] / row.sum()
+    total = row.sum()
+    if total == 0:
+        return 0.0
+    props = row[row > 0] / total
     return float(1 - np.sum(props ** 2))
 
 

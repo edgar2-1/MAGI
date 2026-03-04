@@ -84,15 +84,32 @@ def test_remove_host_calls_minimap2_and_samtools(tmp_path):
     host_ref.touch()
     output_f = tmp_path / "dehosted.fastq"
 
-    with patch("magi.qc.host_removal.subprocess.run") as mock_run:
+    mock_pipe_proc = MagicMock()
+    mock_pipe_proc.stdout = MagicMock()
+    mock_pipe_proc.returncode = 0
+    mock_pipe_proc.communicate.return_value = (b"", b"")
+
+    with (
+        patch("magi.qc.host_removal.subprocess.Popen") as mock_popen,
+        patch("magi.qc.host_removal.subprocess.run") as mock_run,
+    ):
+        mock_popen.return_value = mock_pipe_proc
         mock_run.return_value = MagicMock(returncode=0)
         remove_host_direct(input_f, output_f, host_ref)
 
-    assert mock_run.call_count == 2
-    first_cmd = mock_run.call_args_list[0][0][0]
-    second_cmd = mock_run.call_args_list[1][0][0]
-    assert "minimap2" in first_cmd
-    assert "samtools" in second_cmd
+    # Popen called twice: minimap2 and samtools view (the pipe)
+    assert mock_popen.call_count == 2
+    minimap2_cmd = mock_popen.call_args_list[0][0][0]
+    samtools_view_cmd = mock_popen.call_args_list[1][0][0]
+    assert "minimap2" in minimap2_cmd
+    assert "samtools" in samtools_view_cmd
+    assert "view" in samtools_view_cmd
+
+    # subprocess.run called once for samtools fastq
+    mock_run.assert_called_once()
+    fastq_cmd = mock_run.call_args[0][0]
+    assert "samtools" in fastq_cmd
+    assert "fastq" in fastq_cmd
 
 
 def test_remove_host_raises_on_missing_input(tmp_path):

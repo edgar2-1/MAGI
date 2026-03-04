@@ -42,7 +42,7 @@ def standardize_outputs(
 
         try:
             df = pd.read_csv(tsv_file, sep="\t")
-        except Exception as e:
+        except (pd.errors.ParserError, pd.errors.EmptyDataError, KeyError) as e:
             logger.warning("Could not parse %s: %s", tsv_file, e)
             continue
 

@@ -12,11 +12,9 @@ rule qc_filter:
         reads="data/raw/{sample}.fastq.gz",
     output:
         filtered=config["project"]["output_dir"] + "/qc/{sample}.filtered.fastq.gz",
-        report=config["project"]["output_dir"] + "/qc/{sample}.qc_report.json",
     params:
         min_quality=config["qc"]["min_quality"],
         min_length=config["qc"]["min_length"],
-        max_length=config["qc"].get("max_length", ""),
         host_ref=config["qc"].get("host_reference", ""),
         platform=config["input"]["platform"],
     log:
@@ -29,13 +27,10 @@ rule qc_filter:
         magi qc \
             --input {input.reads} \
             --output {output.filtered} \
-            --report {output.report} \
+            --platform {params.platform} \
             --min-quality {params.min_quality} \
             --min-length {params.min_length} \
-            --max-length {params.max_length} \
-            --host-reference {params.host_ref} \
-            --platform {params.platform} \
-            --threads {threads} \
+            $(if [ -n "{params.host_ref}" ]; then echo "--host-reference {params.host_ref}"; fi) \
             2>&1 | tee {log}
         """
 
@@ -46,7 +41,7 @@ rule qc_multiqc:
     """
     input:
         reports=expand(
-            config["project"]["output_dir"] + "/qc/{sample}.qc_report.json",
+            config["project"]["output_dir"] + "/qc/{sample}.filtered.fastq.gz",
             sample=glob_wildcards("data/raw/{sample}.fastq.gz").sample,
         ),
     output:
@@ -57,8 +52,10 @@ rule qc_multiqc:
         "../envs/qc.yaml"
     shell:
         """
-        magi qc-summary \
-            --input-dir {config[project][output_dir]}/qc \
-            --output {output.summary} \
+        multiqc \
+            {config[project][output_dir]}/qc \
+            --outdir $(dirname {output.summary}) \
+            --filename $(basename {output.summary}) \
+            --force \
             2>&1 | tee {log}
         """

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import yaml
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ValidationError, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +137,7 @@ def validate_config(config_path: Path) -> Tuple[List[str], List[str]]:
     # Validate with pydantic schema
     try:
         parsed = MAGIConfig(**config)
-    except Exception as e:
+    except ValidationError as e:
         # Extract individual validation errors
         for err_line in str(e).split("\n"):
             err_line = err_line.strip()

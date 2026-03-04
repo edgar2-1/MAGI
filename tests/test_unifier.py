@@ -93,6 +93,18 @@ def test_normalize_tss():
         assert abs(row.sum() - 1.0) < 1e-10
 
 
+def test_normalize_relative_zero_row():
+    """Relative normalization should handle all-zero rows without NaN."""
+    matrix = pd.DataFrame(
+        {"A": [0, 100], "B": [0, 50]},
+        index=["empty", "normal"],
+    )
+    result = normalize(matrix, method="relative")
+    assert not result.isna().any().any()
+    assert (result.loc["empty"] == 0).all()
+    assert abs(result.loc["normal"].sum() - 1.0) < 1e-10
+
+
 def test_normalize_invalid_method():
     matrix = pd.DataFrame({"a": [1]})
     with pytest.raises(ValueError, match="Unknown normalization method"):

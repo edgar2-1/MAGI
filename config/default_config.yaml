@@ -39,12 +39,12 @@ analysis:
     min_abundance: 0.01
   diversity:
     alpha_metrics: ["shannon", "simpson", "chao1"]
-    beta_metrics: ["bray_curtis", "unifrac"]
+    beta_metrics: ["bray_curtis", "jaccard"]
   differential:
-    method: "ancombc"  # ancombc | aldex2
+    method: "kruskal"  # kruskal (Kruskal-Wallis + BH FDR)
 
 metadata_correlation:
-  tools: ["maaslin2", "lefse"]
+  tools: ["spearman"]  # spearman correlation
   random_forest: true
 
 reporting:

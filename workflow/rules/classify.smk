@@ -2,7 +2,7 @@
 # Classify — Taxonomic classification for bacteriome, mycobiome, and virome
 # =============================================================================
 # These three rules are independent and can run in parallel.
-# Each produces a per-sample abundance table and a classification report.
+# Each produces a per-sample abundance table.
 # =============================================================================
 
 
@@ -14,7 +14,6 @@ rule classify_bacteriome:
         reads=get_classify_input,
     output:
         abundance=config["project"]["output_dir"] + "/classify/bacteriome/{sample}.abundance.tsv",
-        report=config["project"]["output_dir"] + "/classify/bacteriome/{sample}.kreport",
     params:
         db=config["classify"]["bacteriome"]["db"],
         confidence=config["classify"]["bacteriome"]["confidence"],
@@ -25,13 +24,12 @@ rule classify_bacteriome:
     threads: 8
     shell:
         """
-        magi classify bacteriome \
+        magi classify \
             --input {input.reads} \
-            --output {output.abundance} \
-            --report {output.report} \
+            --kingdom bacteria \
             --db {params.db} \
             --confidence {params.confidence} \
-            --threads {threads} \
+            --output {output.abundance} \
             2>&1 | tee {log}
         """
 
@@ -44,7 +42,6 @@ rule classify_mycobiome:
         reads=get_classify_input,
     output:
         abundance=config["project"]["output_dir"] + "/classify/mycobiome/{sample}.abundance.tsv",
-        report=config["project"]["output_dir"] + "/classify/mycobiome/{sample}.kreport",
     params:
         db=config["classify"]["mycobiome"]["db"],
         confidence=config["classify"]["mycobiome"]["confidence"],
@@ -55,13 +52,12 @@ rule classify_mycobiome:
     threads: 8
     shell:
         """
-        magi classify mycobiome \
+        magi classify \
             --input {input.reads} \
-            --output {output.abundance} \
-            --report {output.report} \
+            --kingdom fungi \
             --db {params.db} \
             --confidence {params.confidence} \
-            --threads {threads} \
+            --output {output.abundance} \
             2>&1 | tee {log}
         """
 
@@ -74,9 +70,7 @@ rule classify_virome:
         reads=get_classify_input,
     output:
         abundance=config["project"]["output_dir"] + "/classify/virome/{sample}.abundance.tsv",
-        report=config["project"]["output_dir"] + "/classify/virome/{sample}.virome_report.json",
     params:
-        tool=config["classify"]["virome"]["tool"],
         db=config["classify"]["virome"]["db"],
     log:
         config["project"]["output_dir"] + "/logs/classify/{sample}.virome.log",
@@ -85,12 +79,10 @@ rule classify_virome:
     threads: 8
     shell:
         """
-        magi classify virome \
+        magi classify \
             --input {input.reads} \
-            --output {output.abundance} \
-            --report {output.report} \
-            --tool {params.tool} \
+            --kingdom virus \
             --db {params.db} \
-            --threads {threads} \
+            --output {output.abundance} \
             2>&1 | tee {log}
         """

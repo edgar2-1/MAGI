@@ -42,4 +42,5 @@ def _clr(matrix: pd.DataFrame) -> pd.DataFrame:
 def _relative(matrix: pd.DataFrame) -> pd.DataFrame:
     """Convert to relative abundance (each row sums to 1)."""
     row_sums = matrix.sum(axis=1)
+    row_sums = row_sums.replace(0, 1)  # Avoid division by zero for empty samples
     return matrix.div(row_sums, axis=0)

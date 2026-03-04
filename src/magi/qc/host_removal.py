@@ -38,7 +38,8 @@ def remove_host(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     bam_path = output_path.with_suffix(".host_aligned.bam")
 
-    # Step 1: Align reads to host reference
+    # Step 1: Align reads to host reference and convert to BAM
+    # minimap2 outputs SAM to stdout, so we pipe it into samtools view
     minimap2_cmd = [
         "minimap2",
         "-a",
@@ -47,25 +48,52 @@ def remove_host(
         str(host_reference),
         str(input_path),
     ]
+    samtools_view_cmd = [
+        "samtools", "view", "-b", "-o", str(bam_path), "-",
+    ]
 
-    logger.info("Aligning to host reference: %s", " ".join(minimap2_cmd))
+    logger.info("Aligning to host reference: %s | %s",
+                " ".join(minimap2_cmd), " ".join(samtools_view_cmd))
 
-    result = subprocess.run(minimap2_cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(f"minimap2 failed (exit {result.returncode}): {result.stderr}")
+    minimap2_proc = subprocess.Popen(
+        minimap2_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    view_proc = subprocess.Popen(
+        samtools_view_cmd,
+        stdin=minimap2_proc.stdout,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    minimap2_proc.stdout.close()  # Allow minimap2 to receive SIGPIPE
+    _, view_stderr = view_proc.communicate()
+    minimap2_proc.wait()
+
+    if minimap2_proc.returncode != 0:
+        raise RuntimeError(f"minimap2 failed (exit {minimap2_proc.returncode})")
+    if view_proc.returncode != 0:
+        raise RuntimeError(
+            f"samtools view failed (exit {view_proc.returncode}): "
+            f"{view_stderr.decode()}"
+        )
 
     # Step 2: Extract unmapped reads (non-host)
-    samtools_cmd = [
+    samtools_fastq_cmd = [
         "samtools", "fastq",
         "-f", "4",
         "-0", str(output_path),
         str(bam_path),
     ]
 
-    logger.info("Extracting non-host reads: %s", " ".join(samtools_cmd))
+    logger.info("Extracting non-host reads: %s", " ".join(samtools_fastq_cmd))
 
-    result = subprocess.run(samtools_cmd, capture_output=True, text=True)
+    result = subprocess.run(samtools_fastq_cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        raise RuntimeError(f"samtools failed (exit {result.returncode}): {result.stderr}")
+        raise RuntimeError(
+            f"samtools fastq failed (exit {result.returncode}): {result.stderr}"
+        )
+
+    # Clean up intermediate BAM
+    if bam_path.exists():
+        bam_path.unlink()
 
     logger.info("Host-free reads written to %s", output_path)

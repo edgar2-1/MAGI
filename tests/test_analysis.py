@@ -85,6 +85,18 @@ def test_alpha_diversity_multiple_metrics():
     assert result.shape == (5, 3)
 
 
+def test_alpha_diversity_zero_row():
+    """Shannon and Simpson should return 0 for all-zero samples."""
+    matrix = pd.DataFrame(
+        {"A": [0, 100], "B": [0, 50]},
+        index=["empty", "normal"],
+    )
+    result = compute_alpha_diversity(matrix, metrics=["shannon", "simpson"])
+    assert result.loc["empty", "shannon"] == 0.0
+    assert result.loc["empty", "simpson"] == 0.0
+    assert result.loc["normal", "shannon"] > 0
+
+
 def test_alpha_diversity_invalid_metric():
     with pytest.raises(ValueError, match="Unknown alpha diversity metric"):
         compute_alpha_diversity(_MATRIX, metrics=["invalid"])

@@ -27,18 +27,17 @@ requirements:
     - python >=3.10
     - click
     - pyyaml
+    - pydantic >=2.0
+    - tqdm
     - pandas
     - numpy
     - scipy
     - scikit-bio
-    - taxopy
     - plotly-py
     - matplotlib-base
     - seaborn
-    - jinja2
     - networkx
     - scikit-learn
-    - statsmodels
     # External bioinformatics tools (recommended)
     - fastp
     - minimap2

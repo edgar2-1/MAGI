@@ -1,5 +1,5 @@
 # =============================================================================
-# MAGI — Metagenomic Analysis by Genome Integration
+# MAGI — Multi-kingdom Analysis of Genomic Interactions
 # Main Snakemake Workflow
 # =============================================================================
 #
@@ -10,7 +10,7 @@
 #                    These three classification steps run in parallel.
 #   4. Unifier     — Merge and normalize abundance tables across all three kingdoms
 #   5. Analysis    — Co-occurrence networks, alpha/beta diversity, differential abundance
-#   6. Metadata    — Metadata correlation via MaAsLin2, LEfSe, and random forest
+#   6. Metadata    — Metadata correlation via random forest feature importance
 #   7. Reporting   — Generate interactive dashboard and static figures
 # =============================================================================
 

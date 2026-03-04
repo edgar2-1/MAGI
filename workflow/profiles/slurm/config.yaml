@@ -33,11 +33,11 @@ set-resources:
     mem_mb: 16000
     runtime: 60
     cpus_per_task: 8
-  analysis_cooccurrence:
+  analysis:
     mem_mb: 16000
     runtime: 60
     cpus_per_task: 4
-  reporting_dashboard:
+  reporting:
     mem_mb: 8000
     runtime: 30
     cpus_per_task: 2

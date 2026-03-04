@@ -35,7 +35,27 @@ def standardize_outputs(
     input_dir = Path(input_dir)
     rows = []
 
-    tsv_files = list(input_dir.glob(f"*{kingdom}*.tsv")) or list(input_dir.glob("*.tsv"))
+    # Map kingdom key to possible subdirectory names
+    kingdom_dirs = {
+        "bacteria": ["bacteriome", "bacteria"],
+        "fungi": ["mycobiome", "fungi"],
+        "virus": ["virome", "virus"],
+    }
+
+    tsv_files = []
+    # First try kingdom-specific subdirectories
+    for subdir_name in kingdom_dirs.get(kingdom, [kingdom]):
+        subdir = input_dir / subdir_name
+        if subdir.is_dir():
+            tsv_files.extend(subdir.glob("*.tsv"))
+
+    # Then try recursive glob with kingdom name
+    if not tsv_files:
+        tsv_files = list(input_dir.glob(f"**/*{kingdom}*.tsv"))
+
+    # Fallback: non-kingdom files directly in input_dir
+    if not tsv_files:
+        tsv_files = list(input_dir.glob("*.tsv"))
 
     for tsv_file in tsv_files:
         # Strip known suffixes to extract sample ID
@@ -53,15 +73,28 @@ def standardize_outputs(
             logger.warning("Could not parse %s: %s", tsv_file, e)
             continue
 
-        if "name" in df.columns and "taxonomy_id" in df.columns:
+        # Detect column names (varies by tool)
+        has_name = "name" in df.columns or "seq_name" in df.columns
+        has_taxid = "taxonomy_id" in df.columns
+
+        if has_name:
+            name_col = "name" if "name" in df.columns else "seq_name"
             for _, row in df.iterrows():
                 rows.append({
                     "SampleID": sample_id,
                     "Kingdom": kingdom,
-                    "Taxon": row["name"],
-                    "NCBI_TaxID": int(row["taxonomy_id"]),
+                    "Taxon": row[name_col],
+                    "NCBI_TaxID": (
+                        int(row["taxonomy_id"])
+                        if has_taxid and pd.notna(row.get("taxonomy_id"))
+                        else 0
+                    ),
                     "Rank": _map_rank(row.get("taxonomy_lvl", "S")),
-                    "Abundance": float(row.get("fraction_total_reads", 0)),
+                    "Abundance": float(
+                        row.get("fraction_total_reads",
+                        row.get("abundance",
+                        row.get("virus_score", 0)))
+                    ),
                     "Method": method,
                 })
 

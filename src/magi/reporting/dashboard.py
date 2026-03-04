@@ -82,11 +82,19 @@ def generate_dashboard(results_dir: Path, output_path: Path) -> None:
             figs.append(fig)
             logger.info("Added PCoA ordination chart")
 
-    # Log-ratio biplot
-    matrix_path = results_dir.parent / "unified_matrix.tsv"
-    if not matrix_path.exists():
-        matrix_path = results_dir / "unified_matrix.tsv"
-    if matrix_path.exists():
+    # Log-ratio biplot - try multiple locations for the feature matrix
+    matrix_path = None
+    for candidate in [
+        results_dir.parent / "unifier" / "normalized_abundance.tsv",
+        results_dir.parent / "unified_matrix.tsv",
+        results_dir / "unified_matrix.tsv",
+        results_dir / "normalized_abundance.tsv",
+    ]:
+        if candidate.exists():
+            matrix_path = candidate
+            break
+
+    if matrix_path is not None:
         biplot_matrix = pd.read_csv(matrix_path, sep="\t", index_col=0)
         if biplot_matrix.shape[1] >= 2:
             from magi.reporting.biplot_data import compute_biplot_data
@@ -186,8 +194,8 @@ def generate_dashboard(results_dir: Path, output_path: Path) -> None:
         "<html><head><title>MAGI Dashboard</title></head><body>",
         "<h1>MAGI - Multi-kingdom Analysis of Genomic Interactions</h1>",
     ]
-    for fig in figs:
-        html_parts.append(fig.to_html(full_html=False, include_plotlyjs="cdn"))
+    for i, fig in enumerate(figs):
+        html_parts.append(fig.to_html(full_html=False, include_plotlyjs="cdn" if i == 0 else False))
     html_parts.append("</body></html>")
 
     output_path.write_text("\n".join(html_parts))

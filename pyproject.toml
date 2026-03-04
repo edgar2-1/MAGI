@@ -58,5 +58,8 @@ magi = "magi.cli:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/magi"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"workflow" = "magi/workflow"
+
 [tool.ruff]
 line-length = 99

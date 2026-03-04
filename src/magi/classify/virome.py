@@ -70,7 +70,7 @@ def classify_virome(
     # Parse and copy results to expected output path
     if tool == "genomad":
         # geNomad writes results to work_dir/<input_stem>_summary/
-        input_stem = input_path.stem
+        input_stem = input_path.name.split(".")[0]
         summary_dir = work_dir / f"{input_stem}_summary"
         virus_summary = summary_dir / f"{input_stem}_virus_summary.tsv"
         if not virus_summary.exists():

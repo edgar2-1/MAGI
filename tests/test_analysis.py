@@ -56,6 +56,21 @@ def test_run_cooccurrence_min_abundance_filters():
     assert "Phage_T4" not in G.nodes()
 
 
+def test_sparcc_handles_clr_input():
+    """SparCC should handle CLR-transformed (negative) values without NaN."""
+    clr_matrix = pd.DataFrame(
+        {"A": [-1.5, 0.5, 1.0, -0.5], "B": [0.5, -1.5, -0.5, 1.5],
+         "C": [1.0, 1.0, -0.5, -1.0]},
+        index=["s1", "s2", "s3", "s4"],
+    )
+    G = run_cooccurrence(clr_matrix, method="sparcc")
+    # Should not crash and should produce a valid graph
+    assert G.number_of_nodes() == 3
+    # Check no NaN weights
+    for _, _, data in G.edges(data=True):
+        assert not np.isnan(data.get("weight", 0))
+
+
 # --- Alpha diversity tests ---
 
 def test_alpha_diversity_shannon():

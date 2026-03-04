@@ -31,7 +31,6 @@ def trim_adapters(input_path: Path, output_path: Path, threads: int = 4) -> None
         "fastp",
         "--in1", str(input_path),
         "--out1", str(output_path),
-        "--detect_adapter_for_pe",
         "--thread", str(threads),
     ]
 

@@ -59,3 +59,15 @@ def test_fdr_correction_is_monotonic():
     for i in range(1, len(adjusted)):
         assert adjusted[i] >= adjusted[i - 1] - 1e-10, \
             f"FDR not monotonic at index {i}: {adjusted[i]} < {adjusted[i-1]}"
+
+
+def test_random_forest_single_class():
+    """Random forest should handle single-class metadata without crashing."""
+    single_meta = pd.DataFrame(
+        {"group": ["control"] * 6},
+        index=["s1", "s2", "s3", "s4", "s5", "s6"],
+    )
+    result = run_correlation(_MATRIX, single_meta, random_forest=True)
+    assert "feature_importance" in result
+    imp = result["feature_importance"]
+    assert (imp["importance"] == 0.0).all()

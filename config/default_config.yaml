@@ -52,4 +52,4 @@ metadata_correlation:
 reporting:
   interactive_dashboard: true
   static_figures: true
-  formats: ["html", "png", "svg"]
+  formats: ["png", "svg"]

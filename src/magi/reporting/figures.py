@@ -36,6 +36,13 @@ def generate_figures(
     if formats is None:
         formats = ["png"]
 
+    # Filter to matplotlib-supported formats only
+    SUPPORTED_FORMATS = {"png", "svg", "pdf", "eps", "jpg", "jpeg", "tif", "tiff", "webp", "pgf", "ps", "raw", "rgba"}
+    unsupported = [f for f in formats if f not in SUPPORTED_FORMATS]
+    if unsupported:
+        logger.warning("Skipping unsupported figure formats: %s", unsupported)
+    formats = [f for f in formats if f in SUPPORTED_FORMATS]
+
     output_path.mkdir(parents=True, exist_ok=True)
     generated = []
 
@@ -126,11 +133,19 @@ def generate_figures(
             plt.close(fig)
             logger.info("Generated PCoA ordination plot")
 
-    # Log-ratio biplot (needs the unified matrix, check parent dir)
-    matrix_path = results_dir.parent / "unified_matrix.tsv"
-    if not matrix_path.exists():
-        matrix_path = results_dir / "unified_matrix.tsv"
-    if matrix_path.exists():
+    # Log-ratio biplot - try multiple locations for the feature matrix
+    matrix_path = None
+    for candidate in [
+        results_dir.parent / "unifier" / "normalized_abundance.tsv",
+        results_dir.parent / "unified_matrix.tsv",
+        results_dir / "unified_matrix.tsv",
+        results_dir / "normalized_abundance.tsv",
+    ]:
+        if candidate.exists():
+            matrix_path = candidate
+            break
+
+    if matrix_path is not None:
         generate_biplot(matrix_path, output_path, formats=formats)
 
     logger.info("Generated %d figures in %s", len(generated), output_path)

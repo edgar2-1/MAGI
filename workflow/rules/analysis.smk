@@ -18,6 +18,8 @@ rule analysis:
         results_dir=directory(config["project"]["output_dir"] + "/analysis"),
     params:
         method=config["analysis"]["cooccurrence"]["method"],
+        alpha_metrics=",".join(config["analysis"]["diversity"]["alpha_metrics"]),
+        beta_metrics=",".join(config["analysis"]["diversity"]["beta_metrics"]),
     log:
         config["project"]["output_dir"] + "/logs/analysis/analysis.log",
     conda:
@@ -30,5 +32,7 @@ rule analysis:
             --method {params.method} \
             --metadata {input.metadata} \
             --output {output.results_dir} \
+            --alpha-metrics {params.alpha_metrics} \
+            --beta-metrics {params.beta_metrics} \
             2>&1 | tee {log}
         """

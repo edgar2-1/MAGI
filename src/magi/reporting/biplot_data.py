@@ -60,7 +60,8 @@ def compute_biplot_data(
     var_explained = S[:2]**2 / total_var * 100
 
     # Arrow scaling factor
-    scale = np.max(np.abs(sample_scores)) / np.max(np.abs(taxa_loadings[top_idx])) * 0.8
+    denom = np.max(np.abs(taxa_loadings[top_idx]))
+    scale = (np.max(np.abs(sample_scores)) / denom * 0.8) if denom > 0 else 1.0
 
     return BiplotData(
         sample_scores=sample_scores,

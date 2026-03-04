@@ -56,11 +56,18 @@ def _sparcc(matrix: pd.DataFrame) -> nx.Graph:
     Uses iterative log-ratio variance estimation to compute
     correlations robust to compositionality.
     """
-    # Simplified SparCC: use log-ratio correlations
     mat = matrix.copy().astype(float)
-    mat[mat == 0] = 0.5  # pseudocount
-    log_mat = np.log(mat)
-    corr = log_mat.corr()
+
+    # If data contains negative values, it's likely CLR-transformed
+    # Use it directly for correlation instead of applying log again
+    if (mat < 0).any().any():
+        logger.info("Input appears CLR-transformed, using values directly for correlation")
+        corr = mat.corr()
+    else:
+        # Raw counts: apply pseudocount and log-ratio transform
+        mat[mat == 0] = 0.5
+        log_mat = np.log(mat)
+        corr = log_mat.corr()
 
     G = nx.Graph()
     taxa = matrix.columns.tolist()
@@ -70,7 +77,7 @@ def _sparcc(matrix: pd.DataFrame) -> nx.Graph:
         for j, t2 in enumerate(taxa):
             if i < j:
                 weight = corr.iloc[i, j]
-                if abs(weight) > 0.3:  # significance threshold
+                if not np.isnan(weight) and abs(weight) > 0.3:
                     G.add_edge(t1, t2, weight=weight)
 
     logger.info("SparCC network: %d nodes, %d edges", G.number_of_nodes(), G.number_of_edges())
@@ -87,7 +94,13 @@ def _spieceasi(matrix: pd.DataFrame) -> nx.Graph:
         with tempfile.TemporaryDirectory() as tmpdir:
             input_csv = Path(tmpdir) / "matrix.csv"
             output_csv = Path(tmpdir) / "adjacency.csv"
-            matrix.to_csv(input_csv)
+
+            # SpiecEasi expects count-like data, not CLR-transformed
+            write_matrix = matrix.copy()
+            if (write_matrix < 0).any().any():
+                logger.info("Exponentiating CLR-transformed data for SpiecEasi input")
+                write_matrix = np.exp(write_matrix)
+            write_matrix.to_csv(input_csv)
 
             r_script = f"""
             library(SpiecEasi)

@@ -15,7 +15,7 @@ rule qc_filter:
     params:
         min_quality=config["qc"]["min_quality"],
         min_length=config["qc"]["min_length"],
-        host_ref=config["qc"].get("host_reference", ""),
+        host_ref=config["qc"].get("host_reference") or "",
         platform=config["input"]["platform"],
     log:
         config["project"]["output_dir"] + "/logs/qc/{sample}.log",

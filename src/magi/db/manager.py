@@ -91,7 +91,7 @@ def download_database(kingdom: str, db_dir: Path) -> Path:
     cmd_extract = ["tar", "-xzf", str(archive), "-C", str(target_dir)]
     result = subprocess.run(cmd_extract, capture_output=True, text=True)
     if result.returncode != 0:
-        logger.warning("Extraction warning: %s", result.stderr)
+        raise RuntimeError(f"Database extraction failed for {kingdom}: {result.stderr}")
 
     # Clean up archive
     if archive.exists():

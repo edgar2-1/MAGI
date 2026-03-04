@@ -123,6 +123,14 @@ def _random_forest_importance(
     else:
         y = groups.values
 
+    unique_classes = len(set(y))
+    if unique_classes < 2:
+        logger.warning("Cannot train random forest: only %d class(es) present", unique_classes)
+        return pd.DataFrame({
+            "taxon": matrix.columns,
+            "importance": 0.0,
+        }).set_index("taxon")
+
     X = matrix.values
 
     rf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)

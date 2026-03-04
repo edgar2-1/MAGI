@@ -39,9 +39,29 @@ def run(ctx, cores, dryrun, profile):
         click.echo("Error: --config is required for the 'run' command.", err=True)
         raise SystemExit(1)
 
-    snakefile = Path(__file__).parent.parent.parent / "workflow" / "Snakefile"
-    if not snakefile.exists():
-        snakefile = Path("workflow") / "Snakefile"
+    # Try multiple locations for the Snakefile
+    candidates = [
+        Path(__file__).parent.parent.parent / "workflow" / "Snakefile",  # dev/editable install
+        Path(__file__).parent / "workflow" / "Snakefile",  # bundled in package
+        Path("workflow") / "Snakefile",  # CWD
+    ]
+    snakefile = None
+    for candidate in candidates:
+        if candidate.exists():
+            snakefile = candidate
+            break
+
+    if snakefile is None:
+        click.echo(
+            "Error: Cannot find the Snakemake workflow files.\n"
+            "  The 'magi run' command requires the workflow/ directory.\n"
+            "  Either:\n"
+            "    1. Run from the MAGI repository root, or\n"
+            "    2. Install in development mode: pip install -e .\n"
+            "  Individual steps (qc, classify, etc.) work without the workflow.",
+            err=True,
+        )
+        raise SystemExit(1)
 
     click.echo(f"Loading configuration from {config_path}")
     click.echo(f"Invoking Snakemake workflow (cores={cores}, dryrun={dryrun})")
@@ -206,14 +226,14 @@ def unifier(input_path, normalize_method, min_prevalence, output_path):
     matrix = build_feature_matrix(input_dir)
     click.echo(f"  Feature matrix: {matrix.shape[0]} samples x {matrix.shape[1]} features")
 
-    # Normalize
-    normalized = normalize(matrix, method=normalize_method)
-
-    # Filter by prevalence
-    prevalence = (normalized > 0).sum() / len(normalized)
+    # Filter by prevalence BEFORE normalization (on raw counts)
+    prevalence = (matrix > 0).sum() / len(matrix)
     kept = prevalence[prevalence >= min_prevalence].index
-    normalized = normalized[kept]
-    click.echo(f"  After prevalence filter ({min_prevalence}): {normalized.shape[1]} features")
+    matrix = matrix[kept]
+    click.echo(f"  After prevalence filter ({min_prevalence}): {matrix.shape[1]} features")
+
+    # Normalize AFTER filtering
+    normalized = normalize(matrix, method=normalize_method)
 
     # Save
     output_file.parent.mkdir(parents=True, exist_ok=True)
@@ -230,7 +250,11 @@ def unifier(input_path, normalize_method, min_prevalence, output_path):
               help="Path to metadata TSV for differential abundance.")
 @click.option("--output", "output_path", required=True, type=click.Path(),
               help="Path to write analysis results directory.")
-def analysis(input_path, method, metadata, output_path):
+@click.option("--alpha-metrics", type=str, default="shannon,simpson,observed_species",
+              help="Comma-separated alpha diversity metrics (shannon, simpson, observed_species, chao1).")
+@click.option("--beta-metrics", type=str, default="bray_curtis",
+              help="Comma-separated beta diversity metrics (bray_curtis, jaccard).")
+def analysis(input_path, method, metadata, output_path, alpha_metrics, beta_metrics):
     """Run downstream analyses on the unified matrix.
 
     Includes co-occurrence network inference, diversity calculations,
@@ -249,6 +273,9 @@ def analysis(input_path, method, metadata, output_path):
     output_dir = Path(output_path)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    alpha_list = [m.strip() for m in alpha_metrics.split(",")]
+    beta_list = [m.strip() for m in beta_metrics.split(",")]
+
     click.echo(f"Running analysis on {input_path} ({matrix.shape[0]} samples x {matrix.shape[1]} taxa)")
 
     # Co-occurrence network
@@ -260,13 +287,13 @@ def analysis(input_path, method, metadata, output_path):
     click.echo(f"  Network: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges -> {network_path}")
 
     # Alpha diversity
-    alpha = compute_alpha_diversity(matrix)
+    alpha = compute_alpha_diversity(matrix, metrics=alpha_list)
     alpha_path = output_dir / "alpha_diversity.tsv"
     alpha.to_csv(alpha_path, sep="\t")
     click.echo(f"  Alpha diversity -> {alpha_path}")
 
     # Beta diversity
-    beta = compute_beta_diversity(matrix)
+    beta = compute_beta_diversity(matrix, metrics=beta_list)
     beta_path = output_dir / "beta_diversity.tsv"
     beta.to_csv(beta_path, sep="\t")
     click.echo(f"  Beta diversity -> {beta_path}")
@@ -302,9 +329,11 @@ def analysis(input_path, method, metadata, output_path):
               help="Path to write assembled contigs (FASTA).")
 @click.option("--tool", type=click.Choice(["metaflye", "hifiasm-meta"]),
               default="metaflye", help="Assembly tool to use.")
+@click.option("--platform", type=click.Choice(["hifi", "nanopore"]),
+              default="hifi", help="Sequencing platform.")
 @click.option("--threads", type=int, default=8,
               help="Number of threads for assembly.")
-def assemble(input_path, output_path, tool, threads):
+def assemble(input_path, output_path, tool, platform, threads):
     """Assemble metagenomic reads into contigs."""
     from magi.assembly.assemblers import run_assembly
 
@@ -314,6 +343,7 @@ def assemble(input_path, output_path, tool, threads):
         output_path=Path(output_path),
         tool=tool,
         threads=threads,
+        platform=platform,
     )
     click.echo(f"Assembly complete. Contigs written to {output_path}")
 

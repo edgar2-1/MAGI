@@ -122,3 +122,49 @@ def test_standardize_preserves_underscored_sample_ids(tmp_path):
     result = standardize_outputs(tmp_path, kingdom="bacteria", method="kraken2")
     assert len(result) == 1
     assert result.iloc[0]["SampleID"] == "sample_01"
+
+
+def test_standardize_virome_genomad_output(tmp_path):
+    """geNomad output with virus_score should produce non-zero abundances."""
+    virome_file = tmp_path / "sample1_virus.tsv"
+    virome_file.write_text(
+        "seq_name\ttaxonomy_id\ttaxonomy_lvl\tvirus_score\n"
+        "PhageAlpha\t12345\tS\t0.95\n"
+        "PhageBeta\t\tS\t0.80\n"
+    )
+
+    result = standardize_outputs(tmp_path, kingdom="virus", method="genomad")
+    assert len(result) == 2
+    # Abundances should come from virus_score, not be zero
+    assert result.iloc[0]["Abundance"] == 0.95
+    assert result.iloc[1]["Abundance"] == 0.80
+    # Missing taxonomy_id should default to 0, not crash
+    assert result.iloc[1]["NCBI_TaxID"] == 0
+
+
+def test_standardize_finds_files_in_subdirectory(tmp_path):
+    """Should find TSV files in kingdom-specific subdirectories."""
+    subdir = tmp_path / "bacteriome"
+    subdir.mkdir()
+    kreport = subdir / "sample1.abundance.tsv"
+    kreport.write_text(
+        "name\ttaxonomy_id\ttaxonomy_lvl\tkraken_assigned_reads\tadded_reads\tnew_est_reads\tfraction_total_reads\n"
+        "Escherichia coli\t562\tS\t100\t10\t110\t0.55\n"
+    )
+
+    result = standardize_outputs(tmp_path, kingdom="bacteria", method="kraken2")
+    assert len(result) == 1
+    assert result.iloc[0]["Taxon"] == "Escherichia coli"
+
+
+def test_standardize_genomad_with_abundance_column(tmp_path):
+    """geNomad output using 'abundance' column instead of fraction_total_reads."""
+    virome_file = tmp_path / "sample1_virus.tsv"
+    virome_file.write_text(
+        "name\ttaxonomy_id\ttaxonomy_lvl\tabundance\n"
+        "VirusA\t99999\tS\t0.42\n"
+    )
+
+    result = standardize_outputs(tmp_path, kingdom="virus", method="genomad")
+    assert len(result) == 1
+    assert result.iloc[0]["Abundance"] == 0.42

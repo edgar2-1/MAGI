@@ -84,13 +84,16 @@ def run_differential(
 
 
 def _fdr_correction(pvals: pd.Series) -> pd.Series:
-    """Benjamini-Hochberg FDR correction."""
-    n = len(pvals)
-    ranked = pvals.rank(method="first")
-    adjusted = pvals * n / ranked
+    """Benjamini-Hochberg FDR correction, handling NaN p-values."""
+    valid = pvals.dropna()
+    n = len(valid)
+    if n == 0:
+        return pvals.copy()
+    ranked = valid.rank(method="first")
+    adjusted = valid * n / ranked
     # Ensure monotonicity
-    sorted_idx = pvals.sort_values().index
+    sorted_idx = valid.sort_values().index
     adjusted_sorted = adjusted.loc[sorted_idx]
     cummin = adjusted_sorted.iloc[::-1].cummin().iloc[::-1]
     adjusted.loc[sorted_idx] = cummin
-    return adjusted.clip(upper=1.0)
+    return adjusted.reindex(pvals.index).clip(upper=1.0)

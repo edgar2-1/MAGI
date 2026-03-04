@@ -12,6 +12,7 @@ def run_assembly(
     output_path: Path,
     tool: str = "metaflye",
     threads: int = 8,
+    platform: str = "hifi",
 ) -> None:
     """Assemble metagenomic reads into contigs.
 
@@ -20,6 +21,7 @@ def run_assembly(
         output_path: Path to write assembled contigs (FASTA).
         tool: Assembly tool ("metaflye" or "hifiasm-meta").
         threads: Number of threads.
+        platform: Sequencing platform ("hifi" or "nanopore").
 
     Raises:
         FileNotFoundError: If input file does not exist.
@@ -38,10 +40,15 @@ def run_assembly(
     work_dir = output_path.parent / "assembly_work"
 
     if tool == "metaflye":
+        # Select input type flag based on platform
+        if platform == "hifi":
+            input_flag = "--pacbio-hifi"
+        else:
+            input_flag = "--nano-hq"
         cmd = [
             "flye",
             "--meta",
-            "--pacbio-hifi", str(input_path),
+            input_flag, str(input_path),
             "--out-dir", str(work_dir),
             "--threads", str(threads),
         ]

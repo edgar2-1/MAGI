@@ -255,6 +255,11 @@ def compute_pcoa(
         DataFrame with samples as rows and PC1, PC2, ... as columns.
         The proportion_explained is stored as an attribute.
     """
+    if matrix.shape[0] < 3:
+        logger.warning("Need at least 3 samples for PCoA, got %d", matrix.shape[0])
+        cols = [f"PC{i+1}" for i in range(n_components)]
+        return pd.DataFrame(columns=cols, index=matrix.index, dtype=float)
+
     dist_df = compute_beta_diversity(matrix, metrics=[metric])
     dm = DistanceMatrix(np.ascontiguousarray(dist_df.values), ids=dist_df.index.tolist())
 
@@ -290,6 +295,14 @@ def compute_nmds(
         DataFrame with samples as rows and NMDS1, NMDS2, ... as columns.
         The stress value is stored as an attribute.
     """
+    if matrix.shape[0] < n_components + 1:
+        logger.warning(
+            "Need at least %d samples for %d-component NMDS, got %d",
+            n_components + 1, n_components, matrix.shape[0],
+        )
+        cols = [f"NMDS{i+1}" for i in range(n_components)]
+        return pd.DataFrame(columns=cols, index=matrix.index, dtype=float)
+
     from sklearn.manifold import MDS
 
     dist_df = compute_beta_diversity(matrix, metrics=[metric])

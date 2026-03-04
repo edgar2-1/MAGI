@@ -19,6 +19,7 @@ if config["assembly"]["enabled"]:
             contigs=config["project"]["output_dir"] + "/assembly/{sample}/contigs.fasta",
         params:
             tool=config["assembly"]["tool"],
+            platform=config["input"]["platform"],
         log:
             config["project"]["output_dir"] + "/logs/assembly/{sample}.log",
         conda:
@@ -30,6 +31,7 @@ if config["assembly"]["enabled"]:
                 --input {input.reads} \
                 --output {output.contigs} \
                 --tool {params.tool} \
+                --platform {params.platform} \
                 --threads {threads} \
                 2>&1 | tee {log}
             """

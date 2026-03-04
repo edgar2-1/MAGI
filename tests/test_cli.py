@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
@@ -36,10 +37,16 @@ def test_db_help():
     assert result.exit_code == 0
 
 
-def test_run_invokes_snakemake(tmp_path):
+def test_run_invokes_snakemake(tmp_path, monkeypatch):
     """magi run should invoke snakemake subprocess with config."""
     config_file = tmp_path / "config.yaml"
     config_file.write_text("project:\n  name: test\n  output_dir: results/\n")
+
+    # Create a mock Snakefile so discovery succeeds
+    wf_dir = tmp_path / "workflow"
+    wf_dir.mkdir()
+    (wf_dir / "Snakefile").write_text("# mock")
+    monkeypatch.chdir(tmp_path)
 
     runner = CliRunner()
     with patch("magi.cli._subprocess.run") as mock_run:
@@ -58,10 +65,15 @@ def test_run_fails_without_config():
     assert result.exit_code == 1
 
 
-def test_run_reports_snakemake_failure(tmp_path):
+def test_run_reports_snakemake_failure(tmp_path, monkeypatch):
     """magi run reports failure when snakemake exits non-zero."""
     config_file = tmp_path / "config.yaml"
     config_file.write_text("project:\n  name: test\n  output_dir: results/\n")
+
+    wf_dir = tmp_path / "workflow"
+    wf_dir.mkdir()
+    (wf_dir / "Snakefile").write_text("# mock")
+    monkeypatch.chdir(tmp_path)
 
     runner = CliRunner()
     with patch("magi.cli._subprocess.run") as mock_run:
@@ -70,13 +82,18 @@ def test_run_reports_snakemake_failure(tmp_path):
         assert result.exit_code == 1
 
 
-def test_run_with_profile(tmp_path):
+def test_run_with_profile(tmp_path, monkeypatch):
     """magi run with --profile passes it to snakemake."""
     config_file = tmp_path / "config.yaml"
     config_file.write_text("project:\n  name: test\n  output_dir: results/\n")
     profile_dir = tmp_path / "profile"
     profile_dir.mkdir()
     (profile_dir / "config.yaml").write_text("executor: slurm\n")
+
+    wf_dir = tmp_path / "workflow"
+    wf_dir.mkdir()
+    (wf_dir / "Snakefile").write_text("# mock")
+    monkeypatch.chdir(tmp_path)
 
     runner = CliRunner()
     with patch("magi.cli._subprocess.run") as mock_run:
@@ -212,3 +229,68 @@ def test_metadata_command_no_random_forest(tmp_path):
     assert result.exit_code == 0, result.output
     call_kwargs = mock_corr.call_args
     assert call_kwargs.kwargs.get("random_forest") is False
+
+
+# ---------------------------------------------------------------------------
+# assemble --platform option (Bug 8)
+# ---------------------------------------------------------------------------
+
+
+def test_assemble_command_accepts_platform(tmp_path):
+    input_f = tmp_path / "reads.fastq"
+    input_f.touch()
+    output_f = tmp_path / "contigs.fasta"
+
+    runner = CliRunner()
+    with patch("magi.assembly.assemblers.run_assembly") as mock_asm:
+        result = runner.invoke(main, [
+            "assemble",
+            "--input", str(input_f),
+            "--output", str(output_f),
+            "--platform", "nanopore",
+        ])
+    assert result.exit_code == 0
+    mock_asm.assert_called_once()
+    assert mock_asm.call_args.kwargs.get("platform") == "nanopore"
+
+
+# ---------------------------------------------------------------------------
+# unifier prevalence filter order
+# ---------------------------------------------------------------------------
+
+
+def test_unifier_prevalence_filter_before_normalization():
+    """Prevalence filter should work on raw counts, not normalized values."""
+    runner = CliRunner()
+    result = runner.invoke(main, ["unifier", "--help"])
+    assert result.exit_code == 0
+    assert "--min-prevalence" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Snakefile discovery
+# ---------------------------------------------------------------------------
+
+
+def test_run_fails_with_helpful_error_when_no_snakefile(tmp_path, monkeypatch):
+    """magi run should give a helpful error when Snakefile is not found."""
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text("project:\n  name: test\n  output_dir: results/\n")
+
+    # No workflow/ directory exists
+    monkeypatch.chdir(tmp_path)
+
+    # Patch Path.exists so that none of the Snakefile candidates are found,
+    # even when the source tree has a real workflow/Snakefile (editable install).
+    _original_exists = Path.exists
+
+    def _fake_exists(self):
+        if self.name == "Snakefile":
+            return False
+        return _original_exists(self)
+
+    runner = CliRunner()
+    with patch.object(Path, "exists", _fake_exists):
+        result = runner.invoke(main, ["--config", str(config_file), "run"])
+    assert result.exit_code == 1
+    assert "Cannot find the Snakemake workflow files" in result.output

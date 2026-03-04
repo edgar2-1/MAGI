@@ -122,3 +122,104 @@ def test_remove_host_raises_on_missing_reference(tmp_path):
     input_f.touch()
     with pytest.raises(FileNotFoundError):
         remove_host_direct(input_f, tmp_path / "out.fastq", tmp_path / "missing_host.fna")
+
+
+def test_filter_reads_uses_custom_threads(tmp_path):
+    input_f = tmp_path / "reads.fastq"
+    input_f.touch()
+    output_f = tmp_path / "filtered.fastq"
+
+    with patch("magi.qc.filtering.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
+        filter_reads_direct(input_f, output_f, platform="hifi", threads=16)
+
+    cmd = mock_run.call_args[0][0]
+    thread_idx = cmd.index("--thread")
+    assert cmd[thread_idx + 1] == "16"
+
+
+def test_trim_adapters_uses_custom_threads(tmp_path):
+    input_f = tmp_path / "reads.fastq"
+    input_f.touch()
+    output_f = tmp_path / "trimmed.fastq"
+
+    with patch("magi.qc.trimming.subprocess.run") as mock_run:
+        mock_run.return_value = MagicMock(returncode=0)
+        trim_adapters_direct(input_f, output_f, threads=8)
+
+    cmd = mock_run.call_args[0][0]
+    thread_idx = cmd.index("--thread")
+    assert cmd[thread_idx + 1] == "8"
+
+
+def test_remove_host_uses_custom_threads(tmp_path):
+    input_f = tmp_path / "reads.fastq"
+    input_f.touch()
+    host_ref = tmp_path / "host.fna"
+    host_ref.touch()
+    output_f = tmp_path / "dehosted.fastq"
+
+    mock_pipe_proc = MagicMock()
+    mock_pipe_proc.stdout = MagicMock()
+    mock_pipe_proc.returncode = 0
+    mock_pipe_proc.communicate.return_value = (b"", b"")
+
+    with (
+        patch("magi.qc.host_removal.subprocess.Popen") as mock_popen,
+        patch("magi.qc.host_removal.subprocess.run") as mock_run,
+    ):
+        mock_popen.return_value = mock_pipe_proc
+        mock_run.return_value = MagicMock(returncode=0)
+        remove_host_direct(input_f, output_f, host_ref, threads=12)
+
+    minimap2_cmd = mock_popen.call_args_list[0][0][0]
+    thread_idx = minimap2_cmd.index("-t")
+    assert minimap2_cmd[thread_idx + 1] == "12"
+
+
+def test_remove_host_uses_nanopore_preset(tmp_path):
+    input_f = tmp_path / "reads.fastq"
+    input_f.touch()
+    host_ref = tmp_path / "host.fna"
+    host_ref.touch()
+    output_f = tmp_path / "dehosted.fastq"
+
+    mock_pipe_proc = MagicMock()
+    mock_pipe_proc.stdout = MagicMock()
+    mock_pipe_proc.returncode = 0
+    mock_pipe_proc.communicate.return_value = (b"", b"")
+
+    with (
+        patch("magi.qc.host_removal.subprocess.Popen") as mock_popen,
+        patch("magi.qc.host_removal.subprocess.run") as mock_run,
+    ):
+        mock_popen.return_value = mock_pipe_proc
+        mock_run.return_value = MagicMock(returncode=0)
+        remove_host_direct(input_f, output_f, host_ref, platform="nanopore")
+
+    minimap2_cmd = mock_popen.call_args_list[0][0][0]
+    assert "map-ont" in minimap2_cmd
+
+
+def test_remove_host_uses_hifi_preset_by_default(tmp_path):
+    input_f = tmp_path / "reads.fastq"
+    input_f.touch()
+    host_ref = tmp_path / "host.fna"
+    host_ref.touch()
+    output_f = tmp_path / "dehosted.fastq"
+
+    mock_pipe_proc = MagicMock()
+    mock_pipe_proc.stdout = MagicMock()
+    mock_pipe_proc.returncode = 0
+    mock_pipe_proc.communicate.return_value = (b"", b"")
+
+    with (
+        patch("magi.qc.host_removal.subprocess.Popen") as mock_popen,
+        patch("magi.qc.host_removal.subprocess.run") as mock_run,
+    ):
+        mock_popen.return_value = mock_pipe_proc
+        mock_run.return_value = MagicMock(returncode=0)
+        remove_host_direct(input_f, output_f, host_ref)
+
+    minimap2_cmd = mock_popen.call_args_list[0][0][0]
+    assert "map-hifi" in minimap2_cmd

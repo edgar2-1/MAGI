@@ -12,6 +12,8 @@ def classify_bacteriome(
     output_path: Path,
     db_path: Path,
     confidence: float = 0.2,
+    threads: int = 8,
+    read_length: int = 150,
 ) -> None:
     """Classify bacterial reads using Kraken2 against a GTDB database.
 
@@ -23,6 +25,9 @@ def classify_bacteriome(
         output_path: Path to write abundance table (TSV).
         db_path: Path to Kraken2 database directory.
         confidence: Kraken2 confidence threshold (0-1).
+        threads: Number of threads for Kraken2 to use.
+        read_length: Read length for Bracken abundance estimation
+            (default 150 for short reads, use higher for long reads).
 
     Raises:
         FileNotFoundError: If input file or database does not exist.
@@ -46,7 +51,7 @@ def classify_bacteriome(
         "--confidence", str(confidence),
         "--report", str(kreport_path),
         "--output", str(output_path.with_suffix(".kraken2")),
-        "--threads", "8",
+        "--threads", str(threads),
         str(input_path),
     ]
 
@@ -62,7 +67,7 @@ def classify_bacteriome(
         "-d", str(db_path),
         "-i", str(kreport_path),
         "-o", str(output_path),
-        "-r", "150",
+        "-r", str(read_length),
         "-l", "S",
     ]
 

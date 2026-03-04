@@ -17,6 +17,7 @@ rule classify_bacteriome:
     params:
         db=config["classify"]["bacteriome"]["db"],
         confidence=config["classify"]["bacteriome"]["confidence"],
+        read_length=config["classify"]["bacteriome"].get("read_length", 150),
     log:
         config["project"]["output_dir"] + "/logs/classify/{sample}.bacteriome.log",
     conda:
@@ -29,7 +30,9 @@ rule classify_bacteriome:
             --kingdom bacteria \
             --db {params.db} \
             --confidence {params.confidence} \
+            --read-length {params.read_length} \
             --output {output.abundance} \
+            --threads {threads} \
             2>&1 | tee {log}
         """
 
@@ -45,6 +48,7 @@ rule classify_mycobiome:
     params:
         db=config["classify"]["mycobiome"]["db"],
         confidence=config["classify"]["mycobiome"]["confidence"],
+        read_length=config["classify"]["mycobiome"].get("read_length", 150),
     log:
         config["project"]["output_dir"] + "/logs/classify/{sample}.mycobiome.log",
     conda:
@@ -57,7 +61,9 @@ rule classify_mycobiome:
             --kingdom fungi \
             --db {params.db} \
             --confidence {params.confidence} \
+            --read-length {params.read_length} \
             --output {output.abundance} \
+            --threads {threads} \
             2>&1 | tee {log}
         """
 
@@ -84,5 +90,6 @@ rule classify_virome:
             --kingdom virus \
             --db {params.db} \
             --output {output.abundance} \
+            --threads {threads} \
             2>&1 | tee {log}
         """

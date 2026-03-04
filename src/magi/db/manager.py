@@ -9,6 +9,8 @@ from pathlib import Path
 
 from tqdm import tqdm
 
+from magi.db.integrity import download_with_retry, verify_checksum
+
 logger = logging.getLogger(__name__)
 
 DB_REGISTRY = {
@@ -17,18 +19,21 @@ DB_REGISTRY = {
         "url": "https://genome-idx.s3.amazonaws.com/kraken/k2_standard_20240605.tar.gz",
         "tool": "kraken2",
         "description": "Standard Kraken2 database for bacterial classification",
+        "sha256": None,
     },
     "fungi": {
         "name": "Kraken2 UNITE",
         "url": "https://genome-idx.s3.amazonaws.com/kraken/k2_pluspfp_20240605.tar.gz",
         "tool": "kraken2",
         "description": "Kraken2 PlusPFP database including fungal sequences",
+        "sha256": None,
     },
     "virus": {
         "name": "geNomad",
         "url": "https://zenodo.org/records/8339387/files/genomad_db_v1.5.tar.gz",
         "tool": "genomad",
         "description": "geNomad database for viral identification",
+        "sha256": None,
     },
 }
 
@@ -67,12 +72,20 @@ def download_database(kingdom: str, db_dir: Path) -> Path:
                 self.total = total_size
             self.update(blocks * block_size - self.n)
 
-    try:
+    def _do_download():
         with _DownloadProgress(unit="B", unit_scale=True, unit_divisor=1024,
                                desc=f"Downloading {entry['name']}") as pbar:
             urllib.request.urlretrieve(url, str(archive), reporthook=pbar.update_to)
-    except (urllib.error.URLError, OSError) as e:
+
+    try:
+        download_with_retry(_do_download)
+    except RuntimeError as e:
         raise RuntimeError(f"Download failed for {kingdom}: {e}") from e
+
+    # Verify checksum if available
+    expected_checksum = entry.get("sha256")
+    if expected_checksum:
+        verify_checksum(archive, expected_checksum)
 
     # Extract
     cmd_extract = ["tar", "-xzf", str(archive), "-C", str(target_dir)]

@@ -16,6 +16,39 @@
 
 configfile: "config/default_config.yaml"
 
+import glob as _glob
+import os as _os
+
+def get_samples():
+    """Discover sample names from the configured reads glob pattern."""
+    reads_pattern = config["input"]["reads"]
+    # Convert glob pattern to list of files
+    files = sorted(_glob.glob(reads_pattern))
+    # Extract sample names from filenames
+    samples = [_os.path.splitext(_os.path.basename(f))[0] for f in files]
+    # Strip .fastq suffix if double-extension (.fastq.gz)
+    samples = [s.replace(".fastq", "") for s in samples]
+    if not samples:
+        # Fallback: try glob_wildcards pattern
+        import re
+        # Convert shell glob to snakemake pattern
+        pattern = reads_pattern.replace("*", "{sample}")
+        try:
+            from snakemake.io import glob_wildcards
+            samples = glob_wildcards(pattern).sample
+        except Exception:
+            pass
+    return samples
+
+SAMPLES = get_samples()
+
+def get_reads_dir():
+    """Get the directory containing raw reads from config."""
+    import os
+    return os.path.dirname(config["input"]["reads"])
+
+READS_DIR = get_reads_dir()
+
 
 # ---------------------------------------------------------------------------
 # Include modular rule files

@@ -15,6 +15,7 @@ def filter_reads(
     min_length: int = 1000,
     max_length: Optional[int] = None,
     platform: str = "hifi",
+    threads: int = 4,
 ) -> None:
     """Filter reads by quality and length using fastp.
 
@@ -25,6 +26,7 @@ def filter_reads(
         min_length: Minimum read length to keep.
         max_length: Maximum read length to keep. None means no upper limit.
         platform: Sequencing platform ("hifi" or "nanopore").
+        threads: Number of threads for fastp to use.
 
     Raises:
         FileNotFoundError: If input file does not exist.
@@ -48,7 +50,7 @@ def filter_reads(
         "--html", str(html_report),
         "--qualified_quality_phred", str(min_quality),
         "--length_required", str(min_length),
-        "--thread", "4",
+        "--thread", str(threads),
         "--disable_adapter_trimming",
     ]
 

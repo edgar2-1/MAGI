@@ -82,7 +82,8 @@ def run(ctx, cores, dryrun, profile):
               help="Minimum read length.")
 @click.option("--host-reference", type=click.Path(), default=None,
               help="Path to host reference genome for decontamination.")
-def qc(input_path, output_path, platform, min_quality, min_length, host_reference):
+@click.option("--threads", type=int, default=4, help="Number of threads for QC tools.")
+def qc(input_path, output_path, platform, min_quality, min_length, host_reference, threads):
     """Run quality control on sequencing reads.
 
     Filters, trims, and optionally removes host reads from the input
@@ -99,6 +100,7 @@ def qc(input_path, output_path, platform, min_quality, min_length, host_referenc
         min_quality=min_quality,
         min_length=min_length,
         platform=platform,
+        threads=threads,
     )
     click.echo(f"Filtered reads written to {output_path}")
 
@@ -108,6 +110,8 @@ def qc(input_path, output_path, platform, min_quality, min_length, host_referenc
             input_path=Path(output_path),
             output_path=dehosted_path,
             host_reference=Path(host_reference),
+            threads=threads,
+            platform=platform,
         )
         click.echo(f"Host-free reads written to {dehosted_path}")
 
@@ -123,7 +127,10 @@ def qc(input_path, output_path, platform, min_quality, min_length, host_referenc
               help="Minimum confidence threshold for classification.")
 @click.option("--output", "output_path", required=True, type=click.Path(),
               help="Path to write classification results.")
-def classify(input_path, kingdom, db_path, confidence, output_path):
+@click.option("--threads", type=int, default=8, help="Number of threads for classification tools.")
+@click.option("--read-length", type=int, default=150,
+              help="Read length for Bracken abundance estimation (default 150 for short reads, use higher for long reads).")
+def classify(input_path, kingdom, db_path, confidence, output_path, threads, read_length):
     """Classify reads or contigs by kingdom.
 
     Routes to the appropriate classifier (bacteriome, mycobiome, or
@@ -138,6 +145,8 @@ def classify(input_path, kingdom, db_path, confidence, output_path):
             output_path=Path(output_path),
             db_path=Path(db_path),
             confidence=confidence,
+            threads=threads,
+            read_length=read_length,
         )
     elif kingdom == "fungi":
         from magi.classify.mycobiome import classify_mycobiome
@@ -146,6 +155,8 @@ def classify(input_path, kingdom, db_path, confidence, output_path):
             output_path=Path(output_path),
             db_path=Path(db_path),
             confidence=confidence,
+            threads=threads,
+            read_length=read_length,
         )
     elif kingdom == "virus":
         from magi.classify.virome import classify_virome
@@ -153,6 +164,7 @@ def classify(input_path, kingdom, db_path, confidence, output_path):
             input_path=Path(input_path),
             output_path=Path(output_path),
             db_path=Path(db_path),
+            threads=threads,
         )
 
     click.echo(f"Classification results written to {output_path}")
@@ -281,6 +293,68 @@ def analysis(input_path, method, metadata, output_path):
         click.echo(f"  Differential abundance -> {diff_path}")
 
     click.echo(f"Analysis complete. Results in {output_dir}")
+
+
+@main.command()
+@click.option("--input", "input_path", required=True, type=click.Path(exists=True),
+              help="Path to input filtered reads (FASTQ).")
+@click.option("--output", "output_path", required=True, type=click.Path(),
+              help="Path to write assembled contigs (FASTA).")
+@click.option("--tool", type=click.Choice(["metaflye", "hifiasm-meta"]),
+              default="metaflye", help="Assembly tool to use.")
+@click.option("--threads", type=int, default=8,
+              help="Number of threads for assembly.")
+def assemble(input_path, output_path, tool, threads):
+    """Assemble metagenomic reads into contigs."""
+    from magi.assembly.assemblers import run_assembly
+
+    click.echo(f"Assembling {input_path} with {tool} (threads={threads})")
+    run_assembly(
+        input_path=Path(input_path),
+        output_path=Path(output_path),
+        tool=tool,
+        threads=threads,
+    )
+    click.echo(f"Assembly complete. Contigs written to {output_path}")
+
+
+@main.command()
+@click.option("--input", "input_path", required=True, type=click.Path(exists=True),
+              help="Path to unified abundance matrix (TSV).")
+@click.option("--metadata", "metadata_path", required=True, type=click.Path(exists=True),
+              help="Path to sample metadata (TSV).")
+@click.option("--output", "output_path", required=True, type=click.Path(),
+              help="Path to write correlation results (JSON).")
+@click.option("--group-col", type=str, default=None,
+              help="Metadata column for group-based analysis.")
+@click.option("--no-random-forest", is_flag=True, default=False,
+              help="Skip random forest feature importance analysis.")
+def metadata(input_path, metadata_path, output_path, group_col, no_random_forest):
+    """Run metadata-microbiome correlation analysis."""
+    import json
+
+    import pandas as pd
+
+    from magi.metadata.correlation import run_correlation
+
+    matrix = pd.read_csv(input_path, sep="\t", index_col=0)
+    meta_df = pd.read_csv(metadata_path, sep="\t", index_col=0)
+
+    click.echo(f"Running metadata correlation ({matrix.shape[0]} samples x {matrix.shape[1]} features)")
+
+    results = run_correlation(
+        matrix, meta_df,
+        random_forest=not no_random_forest,
+        group_col=group_col,
+    )
+
+    # Save results
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_file, "w") as f:
+        json.dump(results, f, indent=2, default=str)
+
+    click.echo(f"Correlation results written to {output_path}")
 
 
 @main.command()

@@ -1,6 +1,13 @@
 import pytest
 
-from magi.validate import MAGIConfig, check_tools, validate_config
+from magi.validate import (
+    MAGIConfig,
+    InputConfig,
+    ProjectConfig,
+    UnifierConfig,
+    check_tools,
+    validate_config,
+)
 
 
 def test_check_tools_returns_list():
@@ -46,56 +53,73 @@ def test_validate_config_invalid_yaml(tmp_path):
 
 def test_validate_config_missing_required_keys(tmp_path):
     cfg = tmp_path / "partial.yaml"
-    cfg.write_text("platform: hifi\n")
+    cfg.write_text("qc:\n  min_quality: 20\n")
     errors, warnings = validate_config(cfg)
-    assert any("samples" in e for e in errors)
-    assert any("output_dir" in e for e in errors)
+    assert any("project" in e for e in errors)
+    assert any("input" in e for e in errors)
 
 
 def test_validate_config_valid(tmp_path):
     cfg = tmp_path / "good.yaml"
-    cfg.write_text("samples: []\noutput_dir: results/\nplatform: hifi\n")
+    cfg.write_text("project:\n  output_dir: results/\ninput:\n  reads: 'data/raw/*.fastq.gz'\n  platform: hifi\n")
     errors, warnings = validate_config(cfg)
     assert len(errors) == 0
 
 
 def test_validate_config_invalid_platform(tmp_path):
     cfg = tmp_path / "bad_platform.yaml"
-    cfg.write_text("samples: []\noutput_dir: results/\nplatform: illumina\n")
+    cfg.write_text("project:\n  output_dir: results/\ninput:\n  reads: 'data/raw/*.fastq.gz'\n  platform: illumina\n")
     errors, warnings = validate_config(cfg)
     assert any("platform" in e for e in errors)
 
 
 def test_validate_config_invalid_normalize(tmp_path):
     cfg = tmp_path / "bad_norm.yaml"
-    cfg.write_text("samples: []\noutput_dir: results/\nnormalize: invalid\n")
+    cfg.write_text("project:\n  output_dir: results/\ninput:\n  reads: 'data/raw/*.fastq.gz'\n  platform: hifi\nunifier:\n  normalization: invalid\n")
     errors, warnings = validate_config(cfg)
-    assert any("normalize" in e for e in errors)
+    assert any("normalize" in e.lower() for e in errors)
 
 
 # ---- Pydantic schema tests ----
 
 
 def test_magi_config_valid_minimal():
-    config = MAGIConfig(samples=[], output_dir="results/")
-    assert config.output_dir == "results/"
+    config = MAGIConfig(project=ProjectConfig(), input=InputConfig())
+    assert config.project.output_dir == "results/"
 
 
 def test_magi_config_with_platform():
-    config = MAGIConfig(samples=[], output_dir="results/", platform="hifi")
-    assert config.platform == "hifi"
+    config = MAGIConfig(project=ProjectConfig(), input=InputConfig(platform="hifi"))
+    assert config.input.platform == "hifi"
 
 
 def test_magi_config_invalid_platform():
     with pytest.raises(Exception):
-        MAGIConfig(samples=[], output_dir="results/", platform="illumina")
+        MAGIConfig(project=ProjectConfig(), input=InputConfig(platform="illumina"))
 
 
 def test_magi_config_invalid_normalize():
     with pytest.raises(Exception):
-        MAGIConfig(samples=[], output_dir="results/", normalize="invalid")
+        MAGIConfig(
+            project=ProjectConfig(),
+            input=InputConfig(),
+            unifier=UnifierConfig(normalization="invalid"),
+        )
 
 
 def test_magi_config_allows_extra_fields():
-    config = MAGIConfig(samples=[], output_dir="results/", custom_field="value")
+    config = MAGIConfig(
+        project=ProjectConfig(),
+        input=InputConfig(),
+        custom_field="value",
+    )
     assert config.custom_field == "value"
+
+
+def test_validate_actual_default_config():
+    """Validate that the actual default_config.yaml passes validation."""
+    import os
+    config_path = os.path.join(os.path.dirname(__file__), "..", "config", "default_config.yaml")
+    if os.path.exists(config_path):
+        errors, warnings = validate_config(config_path)
+        assert len(errors) == 0, f"Default config has errors: {errors}"

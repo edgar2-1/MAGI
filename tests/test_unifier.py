@@ -109,3 +109,16 @@ def test_normalize_invalid_method():
     matrix = pd.DataFrame({"a": [1]})
     with pytest.raises(ValueError, match="Unknown normalization method"):
         normalize(matrix, method="invalid")
+
+
+def test_standardize_preserves_underscored_sample_ids(tmp_path):
+    """Sample IDs with underscores should be preserved."""
+    kreport = tmp_path / "sample_01_bacteria.tsv"
+    kreport.write_text(
+        "name\ttaxonomy_id\ttaxonomy_lvl\tkraken_assigned_reads\tadded_reads\tnew_est_reads\tfraction_total_reads\n"
+        "Escherichia coli\t562\tS\t100\t10\t110\t0.55\n"
+    )
+
+    result = standardize_outputs(tmp_path, kingdom="bacteria", method="kraken2")
+    assert len(result) == 1
+    assert result.iloc[0]["SampleID"] == "sample_01"

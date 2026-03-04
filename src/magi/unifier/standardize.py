@@ -38,7 +38,14 @@ def standardize_outputs(
     tsv_files = list(input_dir.glob(f"*{kingdom}*.tsv")) or list(input_dir.glob("*.tsv"))
 
     for tsv_file in tsv_files:
-        sample_id = tsv_file.stem.split("_")[0]
+        # Strip known suffixes to extract sample ID
+        stem = tsv_file.stem
+        for suffix in (".abundance", "_bacteria", "_fungi", "_virus",
+                        "_bacteriome", "_mycobiome", "_virome"):
+            if stem.endswith(suffix):
+                stem = stem[:-len(suffix)]
+                break
+        sample_id = stem
 
         try:
             df = pd.read_csv(tsv_file, sep="\t")

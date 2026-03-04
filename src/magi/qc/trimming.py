@@ -7,12 +7,13 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-def trim_adapters(input_path: Path, output_path: Path) -> None:
+def trim_adapters(input_path: Path, output_path: Path, threads: int = 4) -> None:
     """Trim adapters from reads using fastp's auto-detection.
 
     Args:
         input_path: Path to input FASTQ file.
         output_path: Path to write trimmed FASTQ file.
+        threads: Number of threads for fastp to use.
 
     Raises:
         FileNotFoundError: If input file does not exist.
@@ -31,7 +32,7 @@ def trim_adapters(input_path: Path, output_path: Path) -> None:
         "--in1", str(input_path),
         "--out1", str(output_path),
         "--detect_adapter_for_pe",
-        "--thread", "4",
+        "--thread", str(threads),
     ]
 
     logger.info("Trimming adapters: %s", " ".join(cmd))

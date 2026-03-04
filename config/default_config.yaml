@@ -21,9 +21,11 @@ classify:
   bacteriome:
     db: "dbs/gtdb_kraken2"
     confidence: 0.2
+    read_length: 150  # Bracken read length; increase for long reads (e.g., 10000 for HiFi)
   mycobiome:
     db: "dbs/unite_kraken2"
     confidence: 0.2
+    read_length: 150  # Bracken read length; increase for long reads (e.g., 10000 for HiFi)
   virome:
     tool: "genomad"  # genomad | virsorter2
     db: "dbs/genomad_db"

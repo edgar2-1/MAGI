@@ -14,15 +14,15 @@ rule unifier:
     input:
         bacteriome=expand(
             config["project"]["output_dir"] + "/classify/bacteriome/{sample}.abundance.tsv",
-            sample=glob_wildcards("data/raw/{sample}.fastq.gz").sample,
+            sample=SAMPLES,
         ),
         mycobiome=expand(
             config["project"]["output_dir"] + "/classify/mycobiome/{sample}.abundance.tsv",
-            sample=glob_wildcards("data/raw/{sample}.fastq.gz").sample,
+            sample=SAMPLES,
         ),
         virome=expand(
             config["project"]["output_dir"] + "/classify/virome/{sample}.abundance.tsv",
-            sample=glob_wildcards("data/raw/{sample}.fastq.gz").sample,
+            sample=SAMPLES,
         ),
     output:
         normalized=config["project"]["output_dir"] + "/unifier/normalized_abundance.tsv",

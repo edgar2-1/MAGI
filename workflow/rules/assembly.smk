@@ -3,8 +3,6 @@
 # =============================================================================
 # This step is conditional on config["assembly"]["enabled"].
 # When disabled, downstream rules consume QC-filtered reads directly.
-# There is no CLI command for assembly; it is only available as a Python API.
-# We use a Snakemake `run:` directive to call the function directly.
 # =============================================================================
 
 
@@ -19,26 +17,22 @@ if config["assembly"]["enabled"]:
             reads=config["project"]["output_dir"] + "/qc/{sample}.filtered.fastq.gz",
         output:
             contigs=config["project"]["output_dir"] + "/assembly/{sample}/contigs.fasta",
-            stats=config["project"]["output_dir"] + "/assembly/{sample}/assembly_stats.json",
         params:
             tool=config["assembly"]["tool"],
-            platform=config["input"]["platform"],
         log:
             config["project"]["output_dir"] + "/logs/assembly/{sample}.log",
         conda:
             "../envs/base.yaml"
         threads: 8
-        run:
-            from magi.assembly.assemblers import run_assembly
-            from pathlib import Path
-
-            run_assembly(
-                input_path=Path(input.reads),
-                output_dir=Path(output.contigs).parent,
-                tool=params.tool,
-                platform=params.platform,
-                threads=threads,
-            )
+        shell:
+            """
+            magi assemble \
+                --input {input.reads} \
+                --output {output.contigs} \
+                --tool {params.tool} \
+                --threads {threads} \
+                2>&1 | tee {log}
+            """
 
 
     def get_classify_input(wildcards):

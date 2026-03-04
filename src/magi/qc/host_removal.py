@@ -11,6 +11,8 @@ def remove_host(
     input_path: Path,
     output_path: Path,
     host_reference: Path,
+    threads: int = 4,
+    platform: str = "hifi",
 ) -> None:
     """Remove host-derived reads by aligning to a host reference genome.
 
@@ -21,6 +23,9 @@ def remove_host(
         input_path: Path to input FASTQ file.
         output_path: Path to write host-free FASTQ file.
         host_reference: Path to host reference genome (FASTA).
+        threads: Number of threads for minimap2 to use.
+        platform: Sequencing platform ("hifi" or "nanopore") to select
+            the minimap2 alignment preset.
 
     Raises:
         FileNotFoundError: If input or host reference file does not exist.
@@ -40,11 +45,12 @@ def remove_host(
 
     # Step 1: Align reads to host reference and convert to BAM
     # minimap2 outputs SAM to stdout, so we pipe it into samtools view
+    preset = "map-hifi" if platform == "hifi" else "map-ont"
     minimap2_cmd = [
         "minimap2",
         "-a",
-        "-x", "map-hifi",
-        "-t", "4",
+        "-x", preset,
+        "-t", str(threads),
         str(host_reference),
         str(input_path),
     ]

@@ -95,8 +95,12 @@ def _spearman_correlations(
     # FDR correction
     n = len(result)
     if n > 0:
-        ranked = result["p_value"].rank(method="first")
-        result["p_adjusted"] = (result["p_value"] * n / ranked).clip(upper=1.0)
+        sorted_result = result.sort_values("p_value")
+        ranked = sorted_result["p_value"].rank(method="first")
+        raw_adjusted = (sorted_result["p_value"] * n / ranked).clip(upper=1.0)
+        # Enforce monotonicity: adjusted p-values must be non-decreasing
+        adjusted = raw_adjusted.iloc[::-1].cummin().iloc[::-1]
+        result["p_adjusted"] = adjusted.reindex(result.index)
 
     return result
 

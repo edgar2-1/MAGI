@@ -40,10 +40,23 @@ def test_download_database_invalid_kingdom(tmp_path):
 
 
 def test_download_database_raises_on_failure(tmp_path):
-    with patch("magi.db.manager.urllib.request.urlretrieve") as mock_dl:
+    with patch("magi.db.manager.urllib.request.urlretrieve") as mock_dl, \
+         patch("magi.db.integrity.time.sleep"):
         mock_dl.side_effect = OSError("download error")
         with pytest.raises(RuntimeError, match="download error"):
             download_database("bacteria", tmp_path)
+
+
+def test_download_database_uses_retry(tmp_path):
+    """Verify download_database uses download_with_retry."""
+    db_dir = tmp_path / "dbs"
+    with patch("magi.db.manager.urllib.request.urlretrieve"), \
+         patch("magi.db.manager.subprocess.run") as mock_run, \
+         patch("magi.db.manager.download_with_retry") as mock_retry:
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_retry.side_effect = lambda fn: fn()
+        download_database("bacteria", db_dir)
+    mock_retry.assert_called_once()
 
 
 def test_get_db_status_no_dbs(tmp_path):

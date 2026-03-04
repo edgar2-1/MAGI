@@ -9,7 +9,7 @@ rule qc_filter:
     Applies minimum quality, length filters, and optional host removal.
     """
     input:
-        reads="data/raw/{sample}.fastq.gz",
+        reads=READS_DIR + "/{sample}.fastq.gz",
     output:
         filtered=config["project"]["output_dir"] + "/qc/{sample}.filtered.fastq.gz",
     params:
@@ -30,6 +30,7 @@ rule qc_filter:
             --platform {params.platform} \
             --min-quality {params.min_quality} \
             --min-length {params.min_length} \
+            --threads {threads} \
             $(if [ -n "{params.host_ref}" ]; then echo "--host-reference {params.host_ref}"; fi) \
             2>&1 | tee {log}
         """
@@ -42,7 +43,7 @@ rule qc_multiqc:
     input:
         reports=expand(
             config["project"]["output_dir"] + "/qc/{sample}.filtered.fastq.gz",
-            sample=glob_wildcards("data/raw/{sample}.fastq.gz").sample,
+            sample=SAMPLES,
         ),
     output:
         summary=config["project"]["output_dir"] + "/qc/multiqc_report.html",

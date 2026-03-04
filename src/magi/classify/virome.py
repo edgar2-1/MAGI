@@ -12,6 +12,7 @@ def classify_virome(
     output_path: Path,
     db_path: Path,
     tool: str = "genomad",
+    threads: int = 8,
 ) -> None:
     """Identify and classify viral sequences using geNomad or VirSorter2.
 
@@ -20,6 +21,7 @@ def classify_virome(
         output_path: Path to write viral abundance table (TSV).
         db_path: Path to geNomad or VirSorter2 database directory.
         tool: Viral identification tool ("genomad" or "virsorter2").
+        threads: Number of threads for the viral identification tool.
 
     Raises:
         FileNotFoundError: If input file or database does not exist.
@@ -44,7 +46,7 @@ def classify_virome(
         cmd = [
             "genomad", "end-to-end",
             "--cleanup",
-            "--threads", "8",
+            "--threads", str(threads),
             str(input_path),
             str(work_dir),
             str(db_path),
@@ -55,7 +57,7 @@ def classify_virome(
             "--seqfile", str(input_path),
             "--db-dir", str(db_path),
             "--working-dir", str(work_dir),
-            "--jobs", "8",
+            "--jobs", str(threads),
             "--include-groups", "dsDNAphage,NCLDV,RNA,ssDNA,lavidaviridae",
         ]
 
@@ -64,5 +66,31 @@ def classify_virome(
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"{tool} failed (exit {result.returncode}): {result.stderr}")
+
+    # Parse and copy results to expected output path
+    if tool == "genomad":
+        # geNomad writes results to work_dir/<input_stem>_summary/
+        input_stem = input_path.stem
+        summary_dir = work_dir / f"{input_stem}_summary"
+        virus_summary = summary_dir / f"{input_stem}_virus_summary.tsv"
+        if not virus_summary.exists():
+            # Try alternate location
+            virus_summary = work_dir / f"{input_stem}_virus_summary.tsv"
+        if virus_summary.exists():
+            import shutil
+            shutil.copy2(virus_summary, output_path)
+        else:
+            # Create empty output if no viruses found
+            output_path.write_text("name\ttaxonomy_id\ttaxonomy_lvl\tabundance\n")
+            logger.warning("No viral sequences found by geNomad")
+    else:
+        # VirSorter2 writes to work_dir/final-viral-score.tsv
+        virsorter_out = work_dir / "final-viral-score.tsv"
+        if virsorter_out.exists():
+            import shutil
+            shutil.copy2(virsorter_out, output_path)
+        else:
+            output_path.write_text("name\ttaxonomy_id\ttaxonomy_lvl\tabundance\n")
+            logger.warning("No viral sequences found by VirSorter2")
 
     logger.info("Virome classification written to %s", output_path)

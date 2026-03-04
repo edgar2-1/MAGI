@@ -36,7 +36,7 @@ def compute_biplot_data(
         BiplotData with sample scores, taxa loadings, and metadata.
     """
     # CLR transform (add pseudocount to handle zeros)
-    pseudo = matrix + 1
+    pseudo = matrix + 0.5  # same pseudocount as normalize._clr
     log_data = np.log(pseudo)
     clr = log_data.subtract(log_data.mean(axis=1), axis=0)
 

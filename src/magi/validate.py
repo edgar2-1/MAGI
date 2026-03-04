@@ -3,7 +3,7 @@
 import logging
 import shutil
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import yaml
 from pydantic import BaseModel, ValidationError, field_validator
@@ -25,57 +25,114 @@ OPTIONAL_TOOLS = {
     "hifiasm_meta": "HiFi metagenomic assembly",
 }
 
-REQUIRED_CONFIG_KEYS = ["samples", "output_dir"]
+REQUIRED_CONFIG_KEYS = ["project", "input"]
 
 
-class SampleEntry(BaseModel):
-    """A sample entry that can be a path string or a dict with a path key."""
-    path: str
+class ProjectConfig(BaseModel):
+    """Project-level configuration."""
+    name: str = "my_study"
+    output_dir: str = "results/"
 
 
-class DatabaseConfig(BaseModel):
-    """Database paths per kingdom."""
-    bacteria: Optional[str] = None
-    fungi: Optional[str] = None
-    virus: Optional[str] = None
-
-
-class MAGIConfig(BaseModel):
-    """MAGI pipeline configuration schema."""
-    samples: Union[List[str], List[dict], dict]
-    output_dir: str
-    platform: Optional[str] = None
-    normalize: Optional[str] = None
-    databases: Optional[Dict[str, Optional[str]]] = None
-    min_quality: Optional[int] = None
-    min_length: Optional[int] = None
-    confidence: Optional[float] = None
-    host_reference: Optional[str] = None
-    cooccurrence_method: Optional[str] = None
+class InputConfig(BaseModel):
+    """Input data configuration."""
+    reads: str = "data/raw/*.fastq.gz"
+    platform: str = "hifi"
     metadata: Optional[str] = None
-
-    model_config = {"extra": "allow"}
 
     @field_validator("platform")
     @classmethod
     def validate_platform(cls, v):
-        if v is not None and v not in ("hifi", "nanopore"):
+        if v not in ("hifi", "nanopore"):
             raise ValueError(f"Invalid platform: '{v}' (must be 'hifi' or 'nanopore')")
         return v
 
-    @field_validator("normalize")
+
+class QCConfig(BaseModel):
+    """QC configuration."""
+    min_quality: int = 20
+    min_length: int = 1000
+    max_length: Optional[int] = None
+    host_reference: Optional[str] = None
+
+
+class AssemblyConfig(BaseModel):
+    """Assembly configuration."""
+    enabled: bool = False
+    tool: str = "metaflye"
+
+
+class KingdomClassifyConfig(BaseModel):
+    """Per-kingdom classification config."""
+    db: str
+    confidence: float = 0.2
+    read_length: int = 150
+
+
+class ViromeClassifyConfig(BaseModel):
+    """Virome-specific classification config."""
+    tool: str = "genomad"
+    db: str
+
+
+class ClassifyConfig(BaseModel):
+    """Classification configuration."""
+    bacteriome: Optional[KingdomClassifyConfig] = None
+    mycobiome: Optional[KingdomClassifyConfig] = None
+    virome: Optional[ViromeClassifyConfig] = None
+
+
+class UnifierConfig(BaseModel):
+    """Unifier configuration."""
+    normalization: str = "clr"
+    min_prevalence: float = 0.1
+    taxonomy_backend: str = "ncbi"
+
+    @field_validator("normalization")
     @classmethod
-    def validate_normalize(cls, v):
-        if v is not None and v not in ("clr", "relative", "tss"):
+    def validate_normalization(cls, v):
+        if v not in ("clr", "relative", "tss"):
             raise ValueError(f"Invalid normalize method: '{v}'")
         return v
 
-    @field_validator("cooccurrence_method")
+
+class CooccurrenceConfig(BaseModel):
+    """Co-occurrence analysis configuration."""
+    method: str = "spieceasi"
+    min_abundance: float = 0.01
+
+    @field_validator("method")
     @classmethod
-    def validate_cooccurrence_method(cls, v):
-        if v is not None and v not in ("spieceasi", "sparcc"):
+    def validate_method(cls, v):
+        if v not in ("spieceasi", "sparcc"):
             raise ValueError(f"Invalid cooccurrence method: '{v}'")
         return v
+
+
+class AnalysisConfig(BaseModel):
+    """Analysis configuration."""
+    cooccurrence: Optional[CooccurrenceConfig] = None
+    model_config = {"extra": "allow"}
+
+
+class MetadataCorrelationConfig(BaseModel):
+    """Metadata correlation configuration."""
+    tools: list = ["spearman"]
+    random_forest: bool = True
+
+
+class MAGIConfig(BaseModel):
+    """MAGI pipeline configuration schema (matches nested YAML)."""
+    project: ProjectConfig = ProjectConfig()
+    input: InputConfig = InputConfig()
+    qc: Optional[QCConfig] = None
+    assembly: Optional[AssemblyConfig] = None
+    classify: Optional[ClassifyConfig] = None
+    unifier: Optional[UnifierConfig] = None
+    analysis: Optional[AnalysisConfig] = None
+    metadata_correlation: Optional[MetadataCorrelationConfig] = None
+
+    model_config = {"extra": "allow"}
 
 
 def check_tools(include_optional: bool = False) -> List[Dict[str, str]]:
@@ -134,33 +191,30 @@ def validate_config(config_path: Path) -> Tuple[List[str], List[str]]:
         errors.append("Config must be a YAML mapping (dict)")
         return errors, warnings
 
+    # Check for required top-level keys
+    for key in REQUIRED_CONFIG_KEYS:
+        if key not in config:
+            errors.append(f"Missing required key: '{key}'")
+    if errors:
+        return errors, warnings
+
     # Validate with pydantic schema
     try:
-        parsed = MAGIConfig(**config)
+        MAGIConfig(**config)
     except ValidationError as e:
-        # Extract individual validation errors
         for err_line in str(e).split("\n"):
             err_line = err_line.strip()
             if err_line and not err_line.startswith("For further"):
                 errors.append(err_line)
-        # Check for missing required keys specifically
-        for key in REQUIRED_CONFIG_KEYS:
-            if key not in config:
-                if not any(key in e for e in errors):
-                    errors.append(f"Missing required key: '{key}'")
         return errors, warnings
 
-    # Warnings for file existence (not errors since files may not exist yet)
-    if isinstance(parsed.samples, list):
-        for s in parsed.samples:
-            if isinstance(s, str) and s and not Path(s).exists():
-                warnings.append(f"Sample file not found: {s}")
-            elif isinstance(s, dict) and "path" in s and not Path(s["path"]).exists():
-                warnings.append(f"Sample file not found: {s['path']}")
-
-    if parsed.databases:
-        for kingdom, db_path in parsed.databases.items():
-            if db_path and not Path(db_path).exists():
-                warnings.append(f"Database path not found for {kingdom}: {db_path}")
+    # Warnings for missing database files
+    if isinstance(config.get("classify"), dict):
+        for kingdom in ("bacteriome", "mycobiome", "virome"):
+            kingdom_cfg = config["classify"].get(kingdom, {})
+            if isinstance(kingdom_cfg, dict):
+                db_path = kingdom_cfg.get("db")
+                if db_path and not Path(db_path).exists():
+                    warnings.append(f"Database path not found for {kingdom}: {db_path}")
 
     return errors, warnings

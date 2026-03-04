@@ -31,8 +31,7 @@ def normalize(matrix: pd.DataFrame, method: str = "clr") -> pd.DataFrame:
 
 def _clr(matrix: pd.DataFrame) -> pd.DataFrame:
     """Centered log-ratio transformation with pseudocount for zeros."""
-    mat = matrix.copy().astype(float)
-    mat[mat == 0] = 0.5
+    mat = matrix.copy().astype(float) + 0.5  # uniform pseudocount
     log_mat = np.log(mat)
     geometric_means = log_mat.mean(axis=1)
     clr_mat = log_mat.subtract(geometric_means, axis=0)

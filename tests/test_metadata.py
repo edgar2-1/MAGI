@@ -47,3 +47,15 @@ def test_no_shared_samples():
     other_meta = pd.DataFrame({"group": ["a"]}, index=["x99"])
     with pytest.raises(ValueError, match="No shared samples"):
         run_correlation(_MATRIX, other_meta)
+
+
+def test_fdr_correction_is_monotonic():
+    """Adjusted p-values should be monotonically non-decreasing when sorted by raw p."""
+    result = run_correlation(_MATRIX, _METADATA, tools=["spearman"], random_forest=False)
+    corr = result["correlations"]
+    sorted_corr = corr.sort_values("p_value")
+    adjusted = sorted_corr["p_adjusted"].values
+    # Check monotonicity
+    for i in range(1, len(adjusted)):
+        assert adjusted[i] >= adjusted[i - 1] - 1e-10, \
+            f"FDR not monotonic at index {i}: {adjusted[i]} < {adjusted[i-1]}"
